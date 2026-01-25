@@ -107,6 +107,7 @@ const SIMULATION_SHADER = `
     uniform float u_mu;         // Growth center
     uniform float u_sigma;      // Growth width
     uniform float u_dt;         // Time step
+    uniform float u_trail;      // Trail/decay factor (0.0-1.0, where 1.0 = no trail)
     
     varying vec2 v_texCoord;
     
@@ -161,6 +162,9 @@ const SIMULATION_SHADER = `
         // Update state
         float currentState = texture2D(u_state, v_texCoord).r;
         float newState = clamp(currentState + G * u_dt / u_T, 0.0, 1.0);
+        
+        // Apply trail/decay effect
+        newState *= u_trail;
         
         gl_FragColor = vec4(newState, newState, newState, 1.0);
     }
@@ -317,6 +321,13 @@ class Lenia {
         this.mutationMode = false;
         this.mutatedParams = null; // Will be initialized when mutation starts
         this.mutationSpeed = 0.0005; // How fast parameters drift
+        
+        // Speed control
+        this.timeScale = 1.0; // 1.0 = normal speed, 0.5 = slow-mo, 2.0 = fast
+        
+        // Trail effect for motion blur
+        this.trailEnabled = false;
+        this.trailAmount = 0.95; // How much previous frame persists (0.9-0.99)
         
         this.init();
     }
@@ -638,6 +649,40 @@ class Lenia {
         }
     }
     
+    setSpeed(scale) {
+        this.timeScale = Math.max(0.1, Math.min(5.0, scale));
+        console.log(`⏱️ Speed: ${this.timeScale.toFixed(2)}x`);
+        return this.timeScale;
+    }
+    
+    toggleTrail() {
+        this.trailEnabled = !this.trailEnabled;
+        if (this.trailEnabled) {
+            console.log(`👻 Trail effect enabled (${this.trailAmount})`);
+        } else {
+            console.log('👻 Trail effect disabled');
+        }
+        return this.trailEnabled;
+    }
+    
+    screenshot() {
+        // Get canvas as PNG data URL
+        const dataURL = this.canvas.toDataURL('image/png');
+        
+        // Create download link
+        const link = document.createElement('a');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+        link.download = `lenia-${timestamp}.png`;
+        link.href = dataURL;
+        
+        // Trigger download
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        console.log('📸 Screenshot saved!');
+    }
+    
     step() {
         const gl = this.gl;
         const species = SPECIES[this.currentSpecies];
@@ -670,7 +715,9 @@ class Lenia {
         gl.uniform1f(gl.getUniformLocation(this.simProgram, 'u_T'), params.T);
         gl.uniform1f(gl.getUniformLocation(this.simProgram, 'u_mu'), params.growthParams.mu);
         gl.uniform1f(gl.getUniformLocation(this.simProgram, 'u_sigma'), params.growthParams.sigma);
-        gl.uniform1f(gl.getUniformLocation(this.simProgram, 'u_dt'), 1.0);
+        gl.uniform1f(gl.getUniformLocation(this.simProgram, 'u_dt'), this.timeScale);
+        gl.uniform1f(gl.getUniformLocation(this.simProgram, 'u_trail'), 
+                     this.trailEnabled ? this.trailAmount : 1.0);
         
         // Draw
         const posAttr = gl.getAttribLocation(this.simProgram, 'a_position');
@@ -1100,6 +1147,48 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
+        // Trail effect button
+        const btnTrail = document.getElementById('btn-trail');
+        if (btnTrail) {
+            btnTrail.addEventListener('click', () => {
+                const active = lenia.toggleTrail();
+                btnTrail.classList.toggle('active', active);
+            });
+        }
+        
+        // Screenshot button
+        const btnScreenshot = document.getElementById('btn-screenshot');
+        if (btnScreenshot) {
+            btnScreenshot.addEventListener('click', () => {
+                lenia.screenshot();
+            });
+        }
+        
+        // Speed control buttons
+        const btnSpeedDown = document.getElementById('btn-speed-down');
+        const btnSpeedNormal = document.getElementById('btn-speed-normal');
+        const btnSpeedUp = document.getElementById('btn-speed-up');
+        
+        if (btnSpeedDown && btnSpeedNormal && btnSpeedUp) {
+            btnSpeedDown.addEventListener('click', () => {
+                lenia.setSpeed(0.5);
+                [btnSpeedDown, btnSpeedNormal, btnSpeedUp].forEach(b => b.classList.remove('active'));
+                btnSpeedDown.classList.add('active');
+            });
+            
+            btnSpeedNormal.addEventListener('click', () => {
+                lenia.setSpeed(1.0);
+                [btnSpeedDown, btnSpeedNormal, btnSpeedUp].forEach(b => b.classList.remove('active'));
+                btnSpeedNormal.classList.add('active');
+            });
+            
+            btnSpeedUp.addEventListener('click', () => {
+                lenia.setSpeed(2.0);
+                [btnSpeedDown, btnSpeedNormal, btnSpeedUp].forEach(b => b.classList.remove('active'));
+                btnSpeedUp.classList.add('active');
+            });
+        }
+        
         // Spawn button cycles through creatures
         let spawnIndex = 0;
         const creatureKeys = Object.keys(CREATURE_TEMPLATES);
@@ -1186,6 +1275,34 @@ document.addEventListener('DOMContentLoaded', () => {
                         btnMutate.classList.toggle('active', mutating);
                         btnMutate.textContent = mutating ? '🧬 Evolving' : '🧬 Mutate';
                     }
+                    break;
+                case 't':
+                    const trailActive = lenia.toggleTrail();
+                    const btnTrail = document.getElementById('btn-trail');
+                    if (btnTrail) {
+                        btnTrail.classList.toggle('active', trailActive);
+                    }
+                    break;
+                case 's':
+                    lenia.screenshot();
+                    break;
+                case '[':
+                    lenia.setSpeed(Math.max(0.1, lenia.timeScale * 0.5));
+                    const btnSpeedDown = document.getElementById('btn-speed-down');
+                    const btnSpeedNormal = document.getElementById('btn-speed-normal');
+                    const btnSpeedUp = document.getElementById('btn-speed-up');
+                    [btnSpeedDown, btnSpeedNormal, btnSpeedUp].forEach(b => b.classList.remove('active'));
+                    if (lenia.timeScale === 0.5) btnSpeedDown?.classList.add('active');
+                    else if (lenia.timeScale === 1.0) btnSpeedNormal?.classList.add('active');
+                    break;
+                case ']':
+                    lenia.setSpeed(Math.min(5.0, lenia.timeScale * 2.0));
+                    const btnSpeedDown2 = document.getElementById('btn-speed-down');
+                    const btnSpeedNormal2 = document.getElementById('btn-speed-normal');
+                    const btnSpeedUp2 = document.getElementById('btn-speed-up');
+                    [btnSpeedDown2, btnSpeedNormal2, btnSpeedUp2].forEach(b => b.classList.remove('active'));
+                    if (lenia.timeScale === 2.0) btnSpeedUp2?.classList.add('active');
+                    else if (lenia.timeScale === 1.0) btnSpeedNormal2?.classList.add('active');
                     break;
             }
         });
