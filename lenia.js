@@ -317,6 +317,11 @@ class Lenia {
         this.lastFpsUpdate = performance.now();
         this.fps = 0;
         
+        // Audio reactivity
+        this.audio = typeof AudioReactive !== 'undefined' ? new AudioReactive() : null;
+        this.audioReactiveEnabled = false;
+        this.lastBeatPerturbTime = 0;
+        
         this.init();
     }
     
@@ -688,6 +693,53 @@ class Lenia {
         });
     }
     
+    async toggleAudio() {
+        if (!this.audio) {
+            console.log('Audio not available');
+            return false;
+        }
+        
+        if (this.audioReactiveEnabled) {
+            this.audio.stop();
+            this.audioReactiveEnabled = false;
+            return false;
+        } else {
+            const success = await this.audio.initMicrophone();
+            this.audioReactiveEnabled = success;
+            return success;
+        }
+    }
+    
+    applyAudioEffects() {
+        if (!this.audioReactiveEnabled || !this.audio) return;
+        
+        this.audio.update();
+        
+        const bass = this.audio.getBass();
+        const energy = this.audio.getEnergy();
+        
+        // On beat, add a perturbation
+        if (this.audio.hasBeat()) {
+            const now = performance.now();
+            if (now - this.lastBeatPerturbTime > 150) {
+                // Add random perturbation on beat
+                const x = Math.random();
+                const y = Math.random();
+                const intensity = 150 + bass * 100;
+                const radius = 20 + bass * 30;
+                this.paint(x, y, radius, intensity);
+                this.lastBeatPerturbTime = now;
+            }
+        }
+        
+        // Continuous bass-driven subtle perturbations
+        if (bass > 0.3 && Math.random() < bass * 0.3) {
+            const x = Math.random();
+            const y = Math.random();
+            this.paint(x, y, 10, bass * 80);
+        }
+    }
+    
     updateFPS() {
         this.frameCount++;
         const now = performance.now();
@@ -703,6 +755,9 @@ class Lenia {
     }
     
     animate() {
+        // Apply audio effects
+        this.applyAudioEffects();
+        
         if (this.playing) {
             this.step();
         }
@@ -818,6 +873,16 @@ document.addEventListener('DOMContentLoaded', () => {
         // Hide loading screen and start
         loading.classList.add('hidden');
         lenia.animate();
+        
+        // Audio button
+        const btnAudio = document.getElementById('btn-audio');
+        if (btnAudio) {
+            btnAudio.addEventListener('click', async () => {
+                const active = await lenia.toggleAudio();
+                btnAudio.classList.toggle('active', active);
+                btnAudio.textContent = active ? '🎤 Active' : '🎤 Audio';
+            });
+        }
         
         // Spawn button cycles through creatures
         let spawnIndex = 0;
