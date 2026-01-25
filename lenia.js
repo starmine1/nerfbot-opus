@@ -655,6 +655,39 @@ class Lenia {
         return this.timeScale;
     }
     
+    /**
+     * Set custom simulation parameters from the Lab panel
+     */
+    setParameters(params) {
+        // Create a custom species based on current one
+        const baseSpecies = SPECIES[this.currentSpecies];
+        const customSpecies = {
+            name: 'Custom',
+            color: baseSpecies.color,
+            R: params.R || baseSpecies.R,
+            T: params.T || baseSpecies.T,
+            kernelParams: baseSpecies.kernelParams,
+            growthParams: {
+                mu: params.mu || baseSpecies.growthParams.mu,
+                sigma: params.sigma || baseSpecies.growthParams.sigma
+            }
+        };
+        
+        // Store as custom species
+        SPECIES['custom'] = customSpecies;
+        this.currentSpecies = 'custom';
+        
+        // Update mutation params if mutation mode is active
+        if (this.mutationMode && this.mutatedParams) {
+            this.mutatedParams.R = customSpecies.R;
+            this.mutatedParams.T = customSpecies.T;
+            this.mutatedParams.growthParams.mu = customSpecies.growthParams.mu;
+            this.mutatedParams.growthParams.sigma = customSpecies.growthParams.sigma;
+        }
+        
+        console.log(`🔬 Parameters set: R=${customSpecies.R}, T=${customSpecies.T}, μ=${customSpecies.growthParams.mu.toFixed(4)}, σ=${customSpecies.growthParams.sigma.toFixed(4)}`);
+    }
+    
     toggleTrail() {
         this.trailEnabled = !this.trailEnabled;
         if (this.trailEnabled) {
@@ -1304,6 +1337,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (lenia.timeScale === 2.0) btnSpeedUp2?.classList.add('active');
                     else if (lenia.timeScale === 1.0) btnSpeedNormal2?.classList.add('active');
                     break;
+                case 'l':
+                    const labPanel = document.getElementById('lab-panel');
+                    const btnLab = document.getElementById('btn-lab');
+                    if (labPanel && btnLab) {
+                        labPanel.classList.toggle('visible');
+                        btnLab.classList.toggle('active');
+                    }
+                    break;
             }
         });
         
@@ -1316,6 +1357,76 @@ document.addEventListener('DOMContentLoaded', () => {
                 lenia.paint(x, y, 25, 180);
             }
         });
+        
+        // Lab Panel - Real-time parameter tweaking
+        const labPanel = document.getElementById('lab-panel');
+        const btnLab = document.getElementById('btn-lab');
+        
+        if (btnLab && labPanel) {
+            btnLab.addEventListener('click', () => {
+                labPanel.classList.toggle('visible');
+                btnLab.classList.toggle('active');
+            });
+            
+            // Slider elements
+            const sliderR = document.getElementById('slider-R');
+            const sliderT = document.getElementById('slider-T');
+            const sliderMu = document.getElementById('slider-mu');
+            const sliderSigma = document.getElementById('slider-sigma');
+            const valR = document.getElementById('val-R');
+            const valT = document.getElementById('val-T');
+            const valMu = document.getElementById('val-mu');
+            const valSigma = document.getElementById('val-sigma');
+            
+            // Update display values on slider change
+            sliderR.addEventListener('input', () => { valR.textContent = sliderR.value; });
+            sliderT.addEventListener('input', () => { valT.textContent = sliderT.value; });
+            sliderMu.addEventListener('input', () => { valMu.textContent = parseFloat(sliderMu.value).toFixed(3); });
+            sliderSigma.addEventListener('input', () => { valSigma.textContent = parseFloat(sliderSigma.value).toFixed(3); });
+            
+            // Apply button - updates the simulation parameters
+            document.getElementById('btn-lab-apply').addEventListener('click', () => {
+                const params = {
+                    R: parseInt(sliderR.value),
+                    T: parseInt(sliderT.value),
+                    mu: parseFloat(sliderMu.value),
+                    sigma: parseFloat(sliderSigma.value)
+                };
+                lenia.setParameters(params);
+                console.log('Applied params:', params);
+            });
+            
+            // Random button - generates random viable parameters
+            document.getElementById('btn-lab-random').addEventListener('click', () => {
+                const R = Math.floor(Math.random() * 12) + 6;
+                const T = Math.floor(Math.random() * 15) + 3;
+                const mu = (Math.random() * 0.20 + 0.08).toFixed(3);
+                const sigma = (Math.random() * 0.025 + 0.010).toFixed(3);
+                
+                sliderR.value = R; valR.textContent = R;
+                sliderT.value = T; valT.textContent = T;
+                sliderMu.value = mu; valMu.textContent = mu;
+                sliderSigma.value = sigma; valSigma.textContent = sigma;
+                
+                lenia.setParameters({ R, T, mu: parseFloat(mu), sigma: parseFloat(sigma) });
+            });
+            
+            // Copy button - copies params to clipboard
+            document.getElementById('btn-lab-copy').addEventListener('click', () => {
+                const params = {
+                    R: parseInt(sliderR.value),
+                    T: parseInt(sliderT.value),
+                    mu: parseFloat(sliderMu.value),
+                    sigma: parseFloat(sliderSigma.value)
+                };
+                const text = JSON.stringify(params, null, 2);
+                navigator.clipboard.writeText(text).then(() => {
+                    const btn = document.getElementById('btn-lab-copy');
+                    btn.textContent = 'Copied!';
+                    setTimeout(() => { btn.textContent = 'Copy'; }, 1000);
+                });
+            });
+        }
         
         // Expose for debugging
         window.lenia = lenia;

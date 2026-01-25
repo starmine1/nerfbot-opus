@@ -129,6 +129,85 @@
             opacity: 0;
             pointer-events: none;
         }
+        
+        /* Lab Panel */
+        #lab-panel {
+            position: fixed;
+            top: 100px;
+            left: 20px;
+            width: 200px;
+            background: rgba(10, 10, 15, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            z-index: 100;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.8);
+            display: none;
+        }
+        
+        #lab-panel.visible {
+            display: block;
+        }
+        
+        #lab-panel .header {
+            padding: 10px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        #lab-panel .content {
+            padding: 12px;
+        }
+        
+        #lab-panel .param {
+            margin-bottom: 12px;
+        }
+        
+        #lab-panel .param label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        #lab-panel .param label span {
+            color: rgba(120, 200, 255, 0.9);
+            font-family: monospace;
+        }
+        
+        #lab-panel input[type="range"] {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        #lab-panel input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            background: rgba(120, 200, 255, 0.8);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        #lab-panel input[type="range"]::-webkit-slider-thumb:hover {
+            background: rgba(120, 200, 255, 1);
+        }
+        
+        #lab-panel .btn-small {
+            padding: 4px 8px;
+            font-size: 9px;
+        }
     </style>
 </head>
 <body>
@@ -160,13 +239,43 @@
         <button class="btn" id="btn-speed-down">0.5x</button>
         <button class="btn active" id="btn-speed-normal">1x</button>
         <button class="btn" id="btn-speed-up">2x</button>
+        <button class="btn" id="btn-lab">🔬 Lab</button>
+    </div>
+    
+    <div id="lab-panel">
+        <div class="header">
+            <span>🔬 Parameter Lab</span>
+            <button class="btn btn-small" id="btn-lab-random">Random</button>
+        </div>
+        <div class="content">
+            <div class="param">
+                <label>Radius (R) <span id="val-R">10</span></label>
+                <input type="range" id="slider-R" min="4" max="20" step="1" value="10">
+            </div>
+            <div class="param">
+                <label>Time (T) <span id="val-T">10</span></label>
+                <input type="range" id="slider-T" min="1" max="20" step="1" value="10">
+            </div>
+            <div class="param">
+                <label>Growth μ <span id="val-mu">0.15</span></label>
+                <input type="range" id="slider-mu" min="0.05" max="0.30" step="0.005" value="0.15">
+            </div>
+            <div class="param">
+                <label>Growth σ <span id="val-sigma">0.017</span></label>
+                <input type="range" id="slider-sigma" min="0.005" max="0.040" step="0.001" value="0.017">
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 8px;">
+                <button class="btn btn-small" id="btn-lab-apply">Apply</button>
+                <button class="btn btn-small" id="btn-lab-copy">Copy</button>
+            </div>
+        </div>
     </div>
     
     <div id="info" style="position: fixed; bottom: 20px; right: 120px; color: rgba(255,255,255,0.5); font-size: 10px; text-align: right; pointer-events: none;">
         Click to disturb · Drag to paint<br>
         Space: pause · R: randomize · C: clear · D: demo<br>
         G: record · M: mutate · T: trail · S: screenshot<br>
-        [ / ]: speed control
+        L: lab mode · [ / ]: speed control
     </div>
     
     <div id="species-select"></div>
