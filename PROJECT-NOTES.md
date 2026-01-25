@@ -37,7 +37,7 @@ Current roster: Orbium, Geminium, Trilobite, Scutium, Pulsar, Swimmer
 - ✅ 6 creature templates with unique behaviors
 - ✅ 8 color palettes (Aurora, Fire, Ocean, Neon, Mono, Plasma, Forest, Cosmic)
 - ✅ Interactive paint mode - draw new creatures
-- ✅ Keyboard shortcuts (space, r, c, d, g, m, t, s, [, ], 1-6, p)
+- ✅ Keyboard shortcuts (space, r, c, d, g, m, t, s, l, [, ], 1-6, p)
 - ✅ Audio reactivity - creatures pulse with music/microphone
 - ✅ Demo mode - auto-cycles through creatures and palettes
 - ✅ Enhanced rendering with edge glow, breathing effects
@@ -46,6 +46,7 @@ Current roster: Orbium, Geminium, Trilobite, Scutium, Pulsar, Swimmer
 - ✅ **PNG Screenshot** - instant capture of beautiful moments (S key or button)
 - ✅ **Speed Control** - slow-motion (0.5x), normal (1x), or fast-forward (2x) using buttons or [ / ] keys
 - ✅ **Trail Effect** - motion blur/ghosting for more organic, flowing visuals (T key or button)
+- ✅ **Lab Mode** - real-time parameter tweaking with sliders for R, T, μ, σ (L key or button)
 
 ### Known Issues
 - Performance could be better (convolution is O(R²) per pixel)
@@ -65,5 +66,5 @@ Keep it simple. Make it beautiful. Don't over-engineer. The goal is "fuck me, th
 
 ---
 
-**Last updated:** 2026-01-26 02:00
-**Status:** Feature-rich and polished - screenshot, speed control, and trail effects added
+**Last updated:** 2026-01-26 06:45
+**Status:** Feature-complete - Lab mode added for parameter experimentation
