@@ -313,6 +313,11 @@ class Lenia {
         this.demoTimer = 0;
         this.demoPhase = 0;
         
+        // Mutation mode - parameters slowly drift creating organic evolution
+        this.mutationMode = false;
+        this.mutatedParams = null; // Will be initialized when mutation starts
+        this.mutationSpeed = 0.0005; // How fast parameters drift
+        
         this.init();
     }
     
@@ -573,9 +578,77 @@ class Lenia {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
     
+    toggleMutation() {
+        this.mutationMode = !this.mutationMode;
+        
+        if (this.mutationMode) {
+            // Initialize mutated params from current species
+            const species = SPECIES[this.currentSpecies];
+            this.mutatedParams = {
+                R: species.R,
+                T: species.T,
+                growthParams: {
+                    mu: species.growthParams.mu,
+                    sigma: species.growthParams.sigma
+                },
+                kernelParams: { ...species.kernelParams },
+                name: species.name + ' (Mutating)',
+                color: [...species.color]
+            };
+            console.log('🧬 Mutation mode activated - watching evolution unfold...');
+        } else {
+            this.mutatedParams = null;
+            console.log('🧬 Mutation mode deactivated - returning to baseline');
+        }
+        
+        return this.mutationMode;
+    }
+    
+    mutate() {
+        if (!this.mutatedParams) return;
+        
+        const p = this.mutatedParams;
+        const speed = this.mutationSpeed;
+        
+        // Random walk with bounds
+        // Kernel radius R: 5-20
+        p.R += (Math.random() - 0.5) * speed * 100;
+        p.R = Math.max(5, Math.min(20, p.R));
+        
+        // Time scale T: 5-20
+        p.T += (Math.random() - 0.5) * speed * 100;
+        p.T = Math.max(5, Math.min(20, p.T));
+        
+        // Growth center mu: 0.05-0.3
+        p.growthParams.mu += (Math.random() - 0.5) * speed;
+        p.growthParams.mu = Math.max(0.05, Math.min(0.3, p.growthParams.mu));
+        
+        // Growth width sigma: 0.005-0.05
+        p.growthParams.sigma += (Math.random() - 0.5) * speed * 0.1;
+        p.growthParams.sigma = Math.max(0.005, Math.min(0.05, p.growthParams.sigma));
+        
+        // Occasionally log current params
+        if (Math.random() < 0.001) {
+            console.log('🧬 Mutation state:', {
+                R: p.R.toFixed(2),
+                T: p.T.toFixed(2),
+                mu: p.growthParams.mu.toFixed(4),
+                sigma: p.growthParams.sigma.toFixed(4)
+            });
+        }
+    }
+    
     step() {
         const gl = this.gl;
         const species = SPECIES[this.currentSpecies];
+        
+        // Apply mutation if enabled
+        if (this.mutationMode) {
+            this.mutate();
+        }
+        
+        // Use mutated parameters if mutation is active, otherwise use species defaults
+        const params = this.mutatedParams || species;
         
         // Render to next framebuffer
         const nextBuffer = 1 - this.currentBuffer;
@@ -593,10 +666,10 @@ class Lenia {
         gl.uniform1i(gl.getUniformLocation(this.simProgram, 'u_state'), 0);
         gl.uniform2f(gl.getUniformLocation(this.simProgram, 'u_resolution'), 
                      this.width, this.height);
-        gl.uniform1f(gl.getUniformLocation(this.simProgram, 'u_R'), species.R);
-        gl.uniform1f(gl.getUniformLocation(this.simProgram, 'u_T'), species.T);
-        gl.uniform1f(gl.getUniformLocation(this.simProgram, 'u_mu'), species.growthParams.mu);
-        gl.uniform1f(gl.getUniformLocation(this.simProgram, 'u_sigma'), species.growthParams.sigma);
+        gl.uniform1f(gl.getUniformLocation(this.simProgram, 'u_R'), params.R);
+        gl.uniform1f(gl.getUniformLocation(this.simProgram, 'u_T'), params.T);
+        gl.uniform1f(gl.getUniformLocation(this.simProgram, 'u_mu'), params.growthParams.mu);
+        gl.uniform1f(gl.getUniformLocation(this.simProgram, 'u_sigma'), params.growthParams.sigma);
         gl.uniform1f(gl.getUniformLocation(this.simProgram, 'u_dt'), 1.0);
         
         // Draw
@@ -1017,6 +1090,16 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
+        // Mutate button for evolutionary parameter drift
+        const btnMutate = document.getElementById('btn-mutate');
+        if (btnMutate) {
+            btnMutate.addEventListener('click', () => {
+                const mutating = lenia.toggleMutation();
+                btnMutate.classList.toggle('active', mutating);
+                btnMutate.textContent = mutating ? '🧬 Evolving' : '🧬 Mutate';
+            });
+        }
+        
         // Spawn button cycles through creatures
         let spawnIndex = 0;
         const creatureKeys = Object.keys(CREATURE_TEMPLATES);
@@ -1094,6 +1177,14 @@ document.addEventListener('DOMContentLoaded', () => {
                             btnPlay.textContent = 'Pause';
                             btnPlay.classList.add('active');
                         }
+                    }
+                    break;
+                case 'm':
+                    const mutating = lenia.toggleMutation();
+                    const btnMutate = document.getElementById('btn-mutate');
+                    if (btnMutate) {
+                        btnMutate.classList.toggle('active', mutating);
+                        btnMutate.textContent = mutating ? '🧬 Evolving' : '🧬 Mutate';
                     }
                     break;
             }
