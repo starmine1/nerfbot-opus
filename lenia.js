@@ -125,11 +125,7 @@ const SIMULATION_SHADER = `
     varying vec2 v_texCoord;
     
     // Kernel function: creates a smooth ring/annulus shape
-    float kernel(float r, vec3 beta) {
-        float b = beta.x;
-        float w1 = beta.y;
-        float w2 = beta.z;
-        
+    float kernel(float r) {
         // Smooth bump function for ring shape
         float kr = 4.0 * r * (1.0 - r);
         return kr * kr;
@@ -137,7 +133,8 @@ const SIMULATION_SHADER = `
     
     // Growth function: bell curve centered at mu
     float growth(float u) {
-        return 2.0 * exp(-pow((u - u_mu) / u_sigma, 2.0) / 2.0) - 1.0;
+        float diff = (u - u_mu) / u_sigma;
+        return 2.0 * exp(-diff * diff / 2.0) - 1.0;
     }
     
     void main() {
@@ -147,18 +144,21 @@ const SIMULATION_SHADER = `
         float total = 0.0;
         float kernelSum = 0.0;
         
-        int R = int(u_R);
-        
-        for (int dy = -30; dy <= 30; dy++) {
-            for (int dx = -30; dx <= 30; dx++) {
-                if (dx*dx + dy*dy > R*R) continue;
-                if (abs(dx) > R || abs(dy) > R) continue;
+        // Fixed loop bounds (WebGL 1.0 requirement)
+        // Max kernel radius is 15, so we loop -15 to 15
+        for (int dy = -15; dy <= 15; dy++) {
+            for (int dx = -15; dx <= 15; dx++) {
+                float fdx = float(dx);
+                float fdy = float(dy);
+                float dist = sqrt(fdx * fdx + fdy * fdy);
                 
-                float r = length(vec2(float(dx), float(dy))) / u_R;
-                if (r > 1.0) continue;
+                // Skip if outside kernel radius
+                if (dist > u_R) continue;
                 
-                float k = kernel(r, u_beta);
-                vec2 samplePos = v_texCoord + vec2(float(dx), float(dy)) * texelSize;
+                float r = dist / u_R;
+                float k = kernel(r);
+                
+                vec2 samplePos = v_texCoord + vec2(fdx, fdy) * texelSize;
                 float state = texture2D(u_state, samplePos).r;
                 
                 total += state * k;
@@ -167,7 +167,7 @@ const SIMULATION_SHADER = `
         }
         
         // Normalize convolution
-        float U = total / max(kernelSum, 0.0001);
+        float U = total / max(kernelSum, 0.001);
         
         // Apply growth function
         float G = growth(U);
@@ -376,7 +376,9 @@ class Lenia {
         gl.compileShader(shader);
         
         if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-            console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+            const typeName = type === gl.VERTEX_SHADER ? 'VERTEX' : 'FRAGMENT';
+            console.error(`${typeName} shader compile error:`, gl.getShaderInfoLog(shader));
+            console.error('Shader source:', source.substring(0, 500));
             gl.deleteShader(shader);
             return null;
         }
@@ -604,13 +606,29 @@ class Lenia {
     render() {
         const gl = this.gl;
         
-        // Get palette colors
-        const palette = (typeof COLOR_PALETTES !== 'undefined') 
-            ? COLOR_PALETTES[this.currentPalette] || COLOR_PALETTES.aurora
-            : { colors: ['#00ff88', '#00aaff', '#ff00ff', '#ff8800'], background: '#050515' };
+        // Helper to convert hex to RGB array
+        const toRGB = (hex) => {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? [
+                parseInt(result[1], 16) / 255,
+                parseInt(result[2], 16) / 255,
+                parseInt(result[3], 16) / 255
+            ] : [0.5, 0.5, 0.5];
+        };
         
-        const colors = palette.colors.map(c => hexToRGB ? hexToRGB(c) : [1, 1, 1]);
-        const bg = hexToRGB ? hexToRGB(palette.background) : [0, 0, 0];
+        // Default palette
+        const defaultPalette = { 
+            colors: ['#00ff88', '#00aaff', '#ff00ff', '#ff8800'], 
+            background: '#050515' 
+        };
+        
+        // Get palette colors
+        const palette = (typeof COLOR_PALETTES !== 'undefined' && COLOR_PALETTES[this.currentPalette]) 
+            ? COLOR_PALETTES[this.currentPalette] 
+            : defaultPalette;
+        
+        const colors = palette.colors.map(c => toRGB(c));
+        const bg = toRGB(palette.background);
         
         // Render to screen
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -1050,6 +1068,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
     } catch (e) {
         loading.textContent = 'Error: ' + e.message;
-        console.error(e);
+        loading.style.fontSize = '12px';
+        loading.style.padding = '20px';
+        loading.style.whiteSpace = 'pre-wrap';
+        console.error('Lenia init error:', e);
+        console.error(e.stack);
     }
 });
