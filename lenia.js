@@ -347,11 +347,19 @@ class Lenia {
         // Create shaders
         console.log('Creating simulation program...');
         this.simProgram = this.createProgram(VERTEX_SHADER, SIMULATION_SHADER);
-        console.log('Simulation program created:', this.simProgram);
+        console.log('Simulation program created:', !!this.simProgram);
         
         console.log('Creating render program...');
         this.renderProgram = this.createProgram(VERTEX_SHADER, RENDER_SHADER_WEBGL1);
-        console.log('Render program created:', this.renderProgram);
+        console.log('Render program created:', !!this.renderProgram);
+        
+        // Check for WebGL errors
+        const err = gl.getError();
+        if (err !== gl.NO_ERROR) {
+            console.error('WebGL error after shader creation:', err);
+        } else {
+            console.log('✅ No WebGL errors after shader creation');
+        }
         
         // Create geometry (full-screen quad)
         this.quadBuffer = gl.createBuffer();
@@ -512,6 +520,17 @@ class Lenia {
                 }
             }
         }
+        
+        // Debug: check our generated data before upload
+        let nonZero = 0;
+        let maxVal = 0;
+        for (let i = 0; i < data.length; i += 4) {
+            if (data[i] > 0) {
+                nonZero++;
+                maxVal = Math.max(maxVal, data[i]);
+            }
+        }
+        console.log(`🎲 randomize(): Generated ${nonZero} non-zero pixels, max value: ${maxVal}`);
         
         // Upload to texture
         const gl = this.gl;
@@ -1145,6 +1164,26 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Hide loading screen and start
         loading.classList.add('hidden');
+        
+        // Debug: verify initial state has values
+        const gl = lenia.gl;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, lenia.framebuffers[lenia.currentBuffer]);
+        const debugData = new Uint8Array(lenia.width * lenia.height * 4);
+        gl.readPixels(0, 0, lenia.width, lenia.height, gl.RGBA, gl.UNSIGNED_BYTE, debugData);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        
+        let nonZeroPixels = 0;
+        let maxValue = 0;
+        for (let i = 0; i < debugData.length; i += 4) {
+            if (debugData[i] > 0) {
+                nonZeroPixels++;
+                maxValue = Math.max(maxValue, debugData[i]);
+            }
+        }
+        console.log(`🔍 Initial state: ${nonZeroPixels} non-zero pixels, max value: ${maxValue}`);
+        console.log(`🔍 Canvas size: ${lenia.width}x${lenia.height}`);
+        console.log(`🔍 Species: ${lenia.currentSpecies}, Palette: ${lenia.currentPalette}`);
+        
         lenia.animate();
         
         // Audio button
