@@ -459,14 +459,25 @@ class Lenia {
         }
         
         // Create Lenia-friendly initial conditions
-        // Smooth gaussian blobs with proper density
-        const numBlobs = 8 + Math.floor(Math.random() * 8);
+        // The key insight: Lenia's growth function expects neighborhood averages
+        // around mu (0.12-0.16). We need ring-shaped patterns, not solid blobs,
+        // so the convolution produces values in the viable range.
         
-        for (let i = 0; i < numBlobs; i++) {
-            const cx = Math.random() * this.width;
-            const cy = Math.random() * this.height;
-            const radius = 15 + Math.random() * 25;
-            const maxIntensity = 180 + Math.random() * 75;
+        const species = SPECIES[this.currentSpecies];
+        const targetMu = species.growthParams.mu; // ~0.15
+        
+        // Create multiple ring-shaped structures (like actual Lenia creatures)
+        const numCreatures = 4 + Math.floor(Math.random() * 4);
+        
+        for (let i = 0; i < numCreatures; i++) {
+            const cx = this.width * (0.15 + Math.random() * 0.7);
+            const cy = this.height * (0.15 + Math.random() * 0.7);
+            const outerRadius = 20 + Math.random() * 20;
+            const innerRadius = outerRadius * (0.3 + Math.random() * 0.3);
+            
+            // Target intensity that will produce neighborhood averages near mu
+            // When convolved with the kernel, ring patterns give good results
+            const peakIntensity = 200 + Math.random() * 55; // 0.78-1.0 normalized
             
             for (let y = 0; y < this.height; y++) {
                 for (let x = 0; x < this.width; x++) {
@@ -474,14 +485,24 @@ class Lenia {
                     const dy = y - cy;
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     
-                    if (dist < radius * 1.5) {
-                        // Smooth gaussian falloff
-                        const t = dist / radius;
-                        const intensity = maxIntensity * Math.exp(-t * t * 2);
+                    if (dist < outerRadius * 1.2) {
+                        // Ring pattern: high at a specific radius, falloff on both sides
+                        const ringRadius = (innerRadius + outerRadius) / 2;
+                        const ringWidth = (outerRadius - innerRadius) / 2;
+                        const ringDist = Math.abs(dist - ringRadius) / ringWidth;
+                        
+                        // Smooth ring with gaussian profile
+                        const ringValue = Math.exp(-ringDist * ringDist * 1.5);
+                        
+                        // Add some core mass for stability
+                        const coreValue = dist < innerRadius ? 
+                            Math.exp(-Math.pow(dist / innerRadius, 2) * 2) * 0.6 : 0;
+                        
+                        const intensity = peakIntensity * Math.max(ringValue, coreValue);
                         const idx = (y * this.width + x) * 4;
                         
-                        // Add noise for organic feel
-                        const noise = (Math.random() - 0.5) * 30;
+                        // Add slight noise for organic feel
+                        const noise = (Math.random() - 0.5) * 15;
                         const value = Math.max(0, Math.min(255, data[idx] + intensity + noise));
                         
                         data[idx] = value;
