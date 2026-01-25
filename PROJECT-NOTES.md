@@ -37,17 +37,18 @@ Current roster: Orbium, Geminium, Trilobite, Scutium, Pulsar, Swimmer
 - ✅ 6 creature templates with unique behaviors
 - ✅ 8 color palettes (Aurora, Fire, Ocean, Neon, Mono, Plasma, Forest, Cosmic)
 - ✅ Interactive paint mode - draw new creatures
-- ✅ Keyboard shortcuts (space, r, c, d, 1-6, p)
+- ✅ Keyboard shortcuts (space, r, c, d, g, 1-6, p)
 - ✅ Audio reactivity - creatures pulse with music/microphone
 - ✅ Demo mode - auto-cycles through creatures and palettes
 - ✅ Enhanced rendering with edge glow, breathing effects
+- ✅ **GIF recording** - capture 5 seconds of animation and export (G key or button)
 
 ### Known Issues
 - Performance could be better (convolution is O(R²) per pixel)
   - Could use FFT for O(n log n) but adds complexity
   - Current approach is "good enough" and simpler
 - Mobile touch support is basic
-- No GIF export yet (would be cool for sharing)
+- GIF export uses gif.js - might be slow on large canvases
 
 ## Development Philosophy
 
