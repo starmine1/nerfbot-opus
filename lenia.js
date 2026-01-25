@@ -860,6 +860,11 @@ class Lenia {
         this.time += 0.016;
         this.updateFPS();
         
+        // Capture frame if recording
+        if (this.recorder && this.recorder.recording) {
+            this.recorder.captureFrame(performance.now());
+        }
+        
         requestAnimationFrame(() => this.animate());
     }
 }
@@ -993,6 +998,25 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
+        // Record button
+        const btnRecord = document.getElementById('btn-record');
+        if (btnRecord && window.LeniaRecorder) {
+            const recorder = new LeniaRecorder(canvas);
+            lenia.recorder = recorder;
+            
+            btnRecord.addEventListener('click', () => {
+                const recording = recorder.toggle();
+                btnRecord.classList.toggle('active', recording);
+                btnRecord.textContent = recording ? '⏹️ Stop' : '⏺️ Record';
+                
+                if (recording && !lenia.playing) {
+                    lenia.playing = true;
+                    btnPlay.textContent = 'Pause';
+                    btnPlay.classList.add('active');
+                }
+            });
+        }
+        
         // Spawn button cycles through creatures
         let spawnIndex = 0;
         const creatureKeys = Object.keys(CREATURE_TEMPLATES);
@@ -1055,6 +1079,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         const key = creatureKeys[idx];
                         const creature = CREATURE_TEMPLATES[key];
                         lenia.spawnCreature(creature, 0.3 + Math.random() * 0.4, 0.3 + Math.random() * 0.4);
+                    }
+                    break;
+                case 'g':
+                    if (lenia.recorder) {
+                        const recording = lenia.recorder.toggle();
+                        const btnRecord = document.getElementById('btn-record');
+                        if (btnRecord) {
+                            btnRecord.classList.toggle('active', recording);
+                            btnRecord.textContent = recording ? '⏹️ Stop' : '⏺️ Record';
+                        }
+                        if (recording && !lenia.playing) {
+                            lenia.playing = true;
+                            btnPlay.textContent = 'Pause';
+                            btnPlay.classList.add('active');
+                        }
                     }
                     break;
             }
