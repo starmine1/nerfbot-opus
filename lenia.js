@@ -298,7 +298,7 @@ class Lenia {
             throw new Error('WebGL not supported');
         }
         
-        this.playing = true;
+        this.playing = false; // Start paused so initial pattern is visible
         this.paintMode = false;
         this.currentSpecies = 'orbium';
         this.currentPalette = 'aurora';
