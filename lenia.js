@@ -119,7 +119,6 @@ const SIMULATION_SHADER = `
     uniform float u_T;          // Time scale
     uniform float u_mu;         // Growth center
     uniform float u_sigma;      // Growth width
-    uniform vec3 u_beta;        // Kernel shell weights
     uniform float u_dt;         // Time step
     
     varying vec2 v_texCoord;
@@ -391,6 +390,10 @@ class Lenia {
         const vertexShader = this.createShader(gl.VERTEX_SHADER, vertexSource);
         const fragmentShader = this.createShader(gl.FRAGMENT_SHADER, fragmentSource);
         
+        if (!vertexShader || !fragmentShader) {
+            throw new Error('Shader compilation failed');
+        }
+        
         const program = gl.createProgram();
         gl.attachShader(program, vertexShader);
         gl.attachShader(program, fragmentShader);
@@ -398,7 +401,7 @@ class Lenia {
         
         if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
             console.error('Program link error:', gl.getProgramInfoLog(program));
-            return null;
+            throw new Error('Shader program linking failed');
         }
         
         return program;
@@ -589,7 +592,6 @@ class Lenia {
         gl.uniform1f(gl.getUniformLocation(this.simProgram, 'u_T'), species.T);
         gl.uniform1f(gl.getUniformLocation(this.simProgram, 'u_mu'), species.growthParams.mu);
         gl.uniform1f(gl.getUniformLocation(this.simProgram, 'u_sigma'), species.growthParams.sigma);
-        gl.uniform3fv(gl.getUniformLocation(this.simProgram, 'u_beta'), species.kernelParams.beta);
         gl.uniform1f(gl.getUniformLocation(this.simProgram, 'u_dt'), 1.0);
         
         // Draw
