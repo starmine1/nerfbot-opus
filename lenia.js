@@ -342,8 +342,13 @@ class Lenia {
         this.resize();
         
         // Create shaders
+        console.log('Creating simulation program...');
         this.simProgram = this.createProgram(VERTEX_SHADER, SIMULATION_SHADER);
+        console.log('Simulation program created:', this.simProgram);
+        
+        console.log('Creating render program...');
         this.renderProgram = this.createProgram(VERTEX_SHADER, RENDER_SHADER_WEBGL1);
+        console.log('Render program created:', this.renderProgram);
         
         // Create geometry (full-screen quad)
         this.quadBuffer = gl.createBuffer();
