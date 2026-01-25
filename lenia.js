@@ -380,6 +380,10 @@ class Lenia {
         // Initialize with random state
         this.randomize();
         
+        // Add a visible test blob in the center to verify rendering works
+        this.paint(0.5, 0.5, 50, 255);
+        console.log('🎯 Added test blob at center');
+        
         // Setup mouse interaction
         this.setupInteraction();
     }
