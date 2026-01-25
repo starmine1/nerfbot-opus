@@ -249,39 +249,16 @@ const RENDER_SHADER_WEBGL1 = `
     
     void main() {
         float state = texture2D(u_state, v_texCoord).r;
-        float v = pow(state, 0.7);
         
-        vec2 texelSize = 1.0 / u_resolution;
-        
-        float dx = texture2D(u_state, v_texCoord + vec2(texelSize.x, 0.0)).r - 
-                   texture2D(u_state, v_texCoord - vec2(texelSize.x, 0.0)).r;
-        float dy = texture2D(u_state, v_texCoord + vec2(0.0, texelSize.y)).r - 
-                   texture2D(u_state, v_texCoord - vec2(0.0, texelSize.y)).r;
-        
-        float edge = length(vec2(dx, dy)) * 8.0;
-        float laplacian = texture2D(u_state, v_texCoord + vec2(texelSize.x, 0.0)).r +
-                          texture2D(u_state, v_texCoord - vec2(texelSize.x, 0.0)).r +
-                          texture2D(u_state, v_texCoord + vec2(0.0, texelSize.y)).r +
-                          texture2D(u_state, v_texCoord - vec2(0.0, texelSize.y)).r -
-                          4.0 * state;
-        
-        float activity = abs(laplacian) * 30.0;
-        
-        vec3 baseColor = palette(v);
-        vec3 edgeColor = palette(0.95) * edge;
-        vec3 activityGlow = vec3(1.0, 0.9, 0.8) * activity * 0.3;
-        
-        vec3 color = mix(u_background, baseColor + edgeColor + activityGlow, 
-                         smoothstep(0.0, 0.08, v + edge * 0.3));
-        
-        float breath = sin(u_time * 2.0) * 0.5 + 0.5;
-        color += edgeColor * breath * 0.15;
-        
-        vec2 center = v_texCoord - 0.5;
-        float vignette = 1.0 - dot(center, center) * 0.6;
-        color *= vignette;
-        
-        gl_FragColor = vec4(color, 1.0);
+        // DEBUG: Simple direct visualization - bright where there's data
+        // If state > 0, show bright color; otherwise show dark background
+        if (state > 0.01) {
+            // Bright green/cyan for any non-zero state
+            gl_FragColor = vec4(state, 1.0, state * 0.5 + 0.5, 1.0);
+        } else {
+            // Dark blue background
+            gl_FragColor = vec4(0.02, 0.02, 0.08, 1.0);
+        }
     }
 `;
 
