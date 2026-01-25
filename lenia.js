@@ -444,6 +444,48 @@ class Lenia {
                       gl.RGBA, gl.UNSIGNED_BYTE, data);
     }
     
+    spawnCreature(creature, x, y, scale = 1.0) {
+        const gl = this.gl;
+        const patternSize = 64;
+        const pattern = creature.generate(patternSize);
+        
+        // Read current state
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers[this.currentBuffer]);
+        const data = new Uint8Array(this.width * this.height * 4);
+        gl.readPixels(0, 0, this.width, this.height, gl.RGBA, gl.UNSIGNED_BYTE, data);
+        
+        // Place creature at position
+        const px = Math.floor(x * this.width);
+        const py = Math.floor((1 - y) * this.height);
+        const scaledSize = Math.floor(patternSize * scale);
+        
+        for (let sy = 0; sy < patternSize; sy++) {
+            for (let sx = 0; sx < patternSize; sx++) {
+                const value = pattern[sy * patternSize + sx];
+                if (value < 0.01) continue;
+                
+                const tx = px + Math.floor((sx - patternSize/2) * scale);
+                const ty = py + Math.floor((sy - patternSize/2) * scale);
+                
+                if (tx < 0 || tx >= this.width || ty < 0 || ty >= this.height) continue;
+                
+                const idx = (ty * this.width + tx) * 4;
+                const newVal = Math.min(255, Math.floor(value * 255));
+                data[idx] = Math.max(data[idx], newVal);
+                data[idx + 1] = data[idx];
+                data[idx + 2] = data[idx];
+                data[idx + 3] = 255;
+            }
+        }
+        
+        // Upload modified state
+        gl.bindTexture(gl.TEXTURE_2D, this.textures[this.currentBuffer]);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.width, this.height, 0,
+                      gl.RGBA, gl.UNSIGNED_BYTE, data);
+        
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
+    
     paint(x, y, radius = 20, intensity = 200) {
         const gl = this.gl;
         
@@ -711,6 +753,71 @@ document.addEventListener('DOMContentLoaded', () => {
         // Hide loading screen and start
         loading.classList.add('hidden');
         lenia.animate();
+        
+        // Spawn button cycles through creatures
+        let spawnIndex = 0;
+        const creatureKeys = Object.keys(CREATURE_TEMPLATES);
+        
+        document.getElementById('btn-spawn').addEventListener('click', () => {
+            const key = creatureKeys[spawnIndex];
+            const creature = CREATURE_TEMPLATES[key];
+            
+            // Also set the species params
+            if (SPECIES[key]) {
+                lenia.currentSpecies = key;
+                document.querySelectorAll('.species-btn').forEach((b, i) => {
+                    b.classList.toggle('selected', Object.keys(SPECIES)[i] === key);
+                });
+            }
+            
+            // Spawn at random position
+            const x = 0.2 + Math.random() * 0.6;
+            const y = 0.2 + Math.random() * 0.6;
+            lenia.spawnCreature(creature, x, y);
+            
+            spawnIndex = (spawnIndex + 1) % creatureKeys.length;
+        });
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            switch(e.key.toLowerCase()) {
+                case ' ':
+                    e.preventDefault();
+                    lenia.playing = !lenia.playing;
+                    btnPlay.textContent = lenia.playing ? 'Pause' : 'Play';
+                    btnPlay.classList.toggle('active', lenia.playing);
+                    break;
+                case 'r':
+                    lenia.randomize();
+                    break;
+                case 'c':
+                    lenia.clear();
+                    break;
+                case 'p':
+                    lenia.paintMode = !lenia.paintMode;
+                    btnPaint.classList.toggle('active', lenia.paintMode);
+                    canvas.style.cursor = lenia.paintMode ? 'crosshair' : 'default';
+                    break;
+                case '1': case '2': case '3': case '4': case '5': case '6':
+                    const idx = parseInt(e.key) - 1;
+                    if (idx < creatureKeys.length) {
+                        const key = creatureKeys[idx];
+                        const creature = CREATURE_TEMPLATES[key];
+                        lenia.spawnCreature(creature, 0.3 + Math.random() * 0.4, 0.3 + Math.random() * 0.4);
+                    }
+                    break;
+            }
+        });
+        
+        // Click to spawn/disturb
+        canvas.addEventListener('click', (e) => {
+            if (!lenia.paintMode) {
+                const rect = canvas.getBoundingClientRect();
+                const x = (e.clientX - rect.left) / rect.width;
+                const y = (e.clientY - rect.top) / rect.height;
+                lenia.paint(x, y, 25, 180);
+            }
+        });
         
         // Expose for debugging
         window.lenia = lenia;
