@@ -228,44 +228,70 @@ const RENDER_SHADER = `
     }
 `;
 
-// Fallback render shader for WebGL 1.0 (no textureSize)
+// Enhanced render shader with palette support
 const RENDER_SHADER_WEBGL1 = `
     precision highp float;
     
     uniform sampler2D u_state;
-    uniform vec3 u_color;
-    uniform float u_time;
     uniform vec2 u_resolution;
+    uniform float u_time;
+    
+    // Palette colors
+    uniform vec3 u_color1;
+    uniform vec3 u_color2;
+    uniform vec3 u_color3;
+    uniform vec3 u_color4;
+    uniform vec3 u_background;
     
     varying vec2 v_texCoord;
     
-    vec3 palette(float t, vec3 baseColor) {
-        vec3 a = vec3(0.02, 0.02, 0.05);
-        vec3 b = baseColor;
-        vec3 c = vec3(1.0, 1.0, 1.0);
-        vec3 d = vec3(0.0, 0.1, 0.2);
+    vec3 palette(float t) {
+        t = clamp(t, 0.0, 1.0);
         
-        return a + b * cos(6.28318 * (c * t + d));
+        if (t < 0.33) {
+            return mix(u_color1, u_color2, t * 3.0);
+        } else if (t < 0.66) {
+            return mix(u_color2, u_color3, (t - 0.33) * 3.0);
+        } else {
+            return mix(u_color3, u_color4, (t - 0.66) * 3.0);
+        }
     }
     
     void main() {
         float state = texture2D(u_state, v_texCoord).r;
-        float v = pow(state, 0.8);
+        float v = pow(state, 0.7);
         
         vec2 texelSize = 1.0 / u_resolution;
+        
         float dx = texture2D(u_state, v_texCoord + vec2(texelSize.x, 0.0)).r - 
                    texture2D(u_state, v_texCoord - vec2(texelSize.x, 0.0)).r;
         float dy = texture2D(u_state, v_texCoord + vec2(0.0, texelSize.y)).r - 
                    texture2D(u_state, v_texCoord - vec2(0.0, texelSize.y)).r;
-        float edge = length(vec2(dx, dy)) * 5.0;
         
-        vec3 color = palette(v, u_color);
-        color += vec3(1.0) * edge * 0.5;
+        float edge = length(vec2(dx, dy)) * 8.0;
+        float laplacian = texture2D(u_state, v_texCoord + vec2(texelSize.x, 0.0)).r +
+                          texture2D(u_state, v_texCoord - vec2(texelSize.x, 0.0)).r +
+                          texture2D(u_state, v_texCoord + vec2(0.0, texelSize.y)).r +
+                          texture2D(u_state, v_texCoord - vec2(0.0, texelSize.y)).r -
+                          4.0 * state;
+        
+        float activity = abs(laplacian) * 30.0;
+        
+        vec3 baseColor = palette(v);
+        vec3 edgeColor = palette(0.95) * edge;
+        vec3 activityGlow = vec3(1.0, 0.9, 0.8) * activity * 0.3;
+        
+        vec3 color = mix(u_background, baseColor + edgeColor + activityGlow, 
+                         smoothstep(0.0, 0.08, v + edge * 0.3));
+        
+        float breath = sin(u_time * 2.0) * 0.5 + 0.5;
+        color += edgeColor * breath * 0.15;
         
         vec2 center = v_texCoord - 0.5;
-        float vignette = 1.0 - length(center) * 0.5;
+        float vignette = 1.0 - dot(center, center) * 0.6;
+        color *= vignette;
         
-        gl_FragColor = vec4(color * vignette, 1.0);
+        gl_FragColor = vec4(color, 1.0);
     }
 `;
 
@@ -285,6 +311,7 @@ class Lenia {
         this.playing = true;
         this.paintMode = false;
         this.currentSpecies = 'orbium';
+        this.currentPalette = 'aurora';
         this.time = 0;
         this.frameCount = 0;
         this.lastFpsUpdate = performance.now();
@@ -566,7 +593,14 @@ class Lenia {
     
     render() {
         const gl = this.gl;
-        const species = SPECIES[this.currentSpecies];
+        
+        // Get palette colors
+        const palette = (typeof COLOR_PALETTES !== 'undefined') 
+            ? COLOR_PALETTES[this.currentPalette] || COLOR_PALETTES.aurora
+            : { colors: ['#00ff88', '#00aaff', '#ff00ff', '#ff8800'], background: '#050515' };
+        
+        const colors = palette.colors.map(c => hexToRGB ? hexToRGB(c) : [1, 1, 1]);
+        const bg = hexToRGB ? hexToRGB(palette.background) : [0, 0, 0];
         
         // Render to screen
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -581,10 +615,16 @@ class Lenia {
         
         // Set uniforms
         gl.uniform1i(gl.getUniformLocation(this.renderProgram, 'u_state'), 0);
-        gl.uniform3fv(gl.getUniformLocation(this.renderProgram, 'u_color'), species.color);
         gl.uniform1f(gl.getUniformLocation(this.renderProgram, 'u_time'), this.time);
         gl.uniform2f(gl.getUniformLocation(this.renderProgram, 'u_resolution'),
                      this.width, this.height);
+        
+        // Palette uniforms
+        gl.uniform3fv(gl.getUniformLocation(this.renderProgram, 'u_color1'), colors[0] || [1,1,1]);
+        gl.uniform3fv(gl.getUniformLocation(this.renderProgram, 'u_color2'), colors[1] || [1,1,1]);
+        gl.uniform3fv(gl.getUniformLocation(this.renderProgram, 'u_color3'), colors[2] || [1,1,1]);
+        gl.uniform3fv(gl.getUniformLocation(this.renderProgram, 'u_color4'), colors[3] || [1,1,1]);
+        gl.uniform3fv(gl.getUniformLocation(this.renderProgram, 'u_background'), bg);
         
         // Draw
         const posAttr = gl.getAttribLocation(this.renderProgram, 'a_position');
@@ -717,6 +757,31 @@ document.addEventListener('DOMContentLoaded', () => {
             btnPaint.classList.toggle('active', lenia.paintMode);
             canvas.style.cursor = lenia.paintMode ? 'crosshair' : 'default';
         });
+        
+        // Create palette buttons
+        const paletteSelect = document.getElementById('palette-select');
+        if (typeof COLOR_PALETTES !== 'undefined' && paletteSelect) {
+            Object.entries(COLOR_PALETTES).forEach(([key, palette]) => {
+                const btn = document.createElement('button');
+                btn.className = 'species-btn';
+                btn.title = palette.name;
+                btn.style.width = '24px';
+                btn.style.height = '24px';
+                btn.style.background = `linear-gradient(135deg, ${palette.colors[0]}, ${palette.colors[1]}, ${palette.colors[2]})`;
+                
+                if (key === lenia.currentPalette) {
+                    btn.classList.add('selected');
+                }
+                
+                btn.addEventListener('click', () => {
+                    paletteSelect.querySelectorAll('.species-btn').forEach(b => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                    lenia.currentPalette = key;
+                });
+                
+                paletteSelect.appendChild(btn);
+            });
+        }
         
         // Create species buttons
         Object.entries(SPECIES).forEach(([key, species]) => {
