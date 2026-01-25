@@ -322,6 +322,11 @@ class Lenia {
         this.audioReactiveEnabled = false;
         this.lastBeatPerturbTime = 0;
         
+        // Demo mode
+        this.demoMode = false;
+        this.demoTimer = 0;
+        this.demoPhase = 0;
+        
         this.init();
     }
     
@@ -710,6 +715,67 @@ class Lenia {
         }
     }
     
+    runDemo() {
+        if (!this.demoMode) return;
+        
+        const dt = 0.016;
+        this.demoTimer += dt;
+        
+        // Phase timing
+        const spawnInterval = 3; // seconds between spawns
+        const paletteInterval = 15; // seconds between palette changes
+        
+        // Spawn creatures periodically
+        if (this.demoTimer % spawnInterval < dt) {
+            const templates = typeof CREATURE_TEMPLATES !== 'undefined' ? 
+                Object.values(CREATURE_TEMPLATES) : [];
+            if (templates.length > 0) {
+                const creature = templates[Math.floor(Math.random() * templates.length)];
+                const x = 0.15 + Math.random() * 0.7;
+                const y = 0.15 + Math.random() * 0.7;
+                this.spawnCreature(creature, x, y, 0.8 + Math.random() * 0.4);
+            }
+        }
+        
+        // Change palette periodically
+        if (this.demoTimer % paletteInterval < dt) {
+            const palettes = typeof COLOR_PALETTES !== 'undefined' ? 
+                Object.keys(COLOR_PALETTES) : ['aurora'];
+            const newPalette = palettes[Math.floor(Math.random() * palettes.length)];
+            this.currentPalette = newPalette;
+            
+            // Update UI
+            const paletteSelect = document.getElementById('palette-select');
+            if (paletteSelect) {
+                paletteSelect.querySelectorAll('.species-btn').forEach((btn, i) => {
+                    btn.classList.toggle('selected', Object.keys(COLOR_PALETTES)[i] === newPalette);
+                });
+            }
+        }
+        
+        // Random perturbations
+        if (Math.random() < 0.02) {
+            const x = Math.random();
+            const y = Math.random();
+            this.paint(x, y, 15, 120);
+        }
+        
+        // Change species occasionally
+        if (this.demoTimer % 20 < dt) {
+            const speciesKeys = Object.keys(SPECIES);
+            this.currentSpecies = speciesKeys[Math.floor(Math.random() * speciesKeys.length)];
+        }
+    }
+    
+    toggleDemo() {
+        this.demoMode = !this.demoMode;
+        if (this.demoMode) {
+            this.demoTimer = 0;
+            this.playing = true;
+        }
+        return this.demoMode;
+    }
+    
     applyAudioEffects() {
         if (!this.audioReactiveEnabled || !this.audio) return;
         
@@ -755,6 +821,9 @@ class Lenia {
     }
     
     animate() {
+        // Demo mode
+        this.runDemo();
+        
         // Apply audio effects
         this.applyAudioEffects();
         
@@ -884,6 +953,21 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
+        // Demo button
+        const btnDemo = document.getElementById('btn-demo');
+        if (btnDemo) {
+            btnDemo.addEventListener('click', () => {
+                const active = lenia.toggleDemo();
+                btnDemo.classList.toggle('active', active);
+                btnDemo.textContent = active ? '🎬 Stop' : '🎬 Demo';
+                
+                if (active) {
+                    btnPlay.textContent = 'Pause';
+                    btnPlay.classList.add('active');
+                }
+            });
+        }
+        
         // Spawn button cycles through creatures
         let spawnIndex = 0;
         const creatureKeys = Object.keys(CREATURE_TEMPLATES);
@@ -927,6 +1011,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     lenia.paintMode = !lenia.paintMode;
                     btnPaint.classList.toggle('active', lenia.paintMode);
                     canvas.style.cursor = lenia.paintMode ? 'crosshair' : 'default';
+                    break;
+                case 'd':
+                    const demoActive = lenia.toggleDemo();
+                    const btnDemo = document.getElementById('btn-demo');
+                    if (btnDemo) {
+                        btnDemo.classList.toggle('active', demoActive);
+                        btnDemo.textContent = demoActive ? '🎬 Stop' : '🎬 Demo';
+                    }
+                    if (demoActive) {
+                        btnPlay.textContent = 'Pause';
+                        btnPlay.classList.add('active');
+                    }
                     break;
                 case '1': case '2': case '3': case '4': case '5': case '6':
                     const idx = parseInt(e.key) - 1;
