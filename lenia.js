@@ -18,79 +18,66 @@
 // Each species is defined by its kernel and growth function parameters.
 // These were discovered through evolutionary search and manual exploration.
 
+// Lenia species with tuned parameters for stability
+// Reduced kernel radii for better performance while maintaining interesting behavior
 const SPECIES = {
     orbium: {
         name: 'Orbium',
         color: [0.2, 0.6, 1.0],
-        R: 13,        // Kernel radius
+        R: 10,        // Reduced kernel radius for performance
         T: 10,        // Time scale
-        kernelParams: {
-            rings: [{ r: 1.0, w: 1.0 }],
-            beta: [1, 1, 1]
-        },
+        kernelParams: { beta: [1, 1, 1] },
         growthParams: {
-            mu: 0.15,    // Growth center
-            sigma: 0.015 // Growth width
+            mu: 0.15,     // Growth center
+            sigma: 0.017  // Slightly wider for stability
         }
     },
     
     geminium: {
         name: 'Geminium',
         color: [1.0, 0.4, 0.6],
-        R: 10,
+        R: 8,
         T: 10,
-        kernelParams: {
-            rings: [{ r: 0.5, w: 0.5 }, { r: 1.0, w: 1.0 }],
-            beta: [1, 0.5, 0.5]
-        },
+        kernelParams: { beta: [1, 0.5, 0.5] },
         growthParams: {
             mu: 0.14,
-            sigma: 0.014
+            sigma: 0.016
         }
     },
     
     hydrogeminium: {
         name: 'Hydrogeminium',
         color: [0.4, 1.0, 0.6],
-        R: 15,
+        R: 12,
         T: 10,
-        kernelParams: {
-            rings: [{ r: 1.0, w: 1.0 }],
-            beta: [1, 1/3, 1]
-        },
+        kernelParams: { beta: [1, 1/3, 1] },
         growthParams: {
             mu: 0.12,
-            sigma: 0.012
+            sigma: 0.015
         }
     },
     
     scutium: {
         name: 'Scutium',
         color: [1.0, 0.8, 0.2],
-        R: 12,
+        R: 10,
         T: 8,
-        kernelParams: {
-            rings: [{ r: 1.0, w: 1.0 }],
-            beta: [0.5, 1, 1]
-        },
+        kernelParams: { beta: [0.5, 1, 1] },
         growthParams: {
             mu: 0.16,
-            sigma: 0.016
+            sigma: 0.018
         }
     },
     
     gliderium: {
         name: 'Gliderium',
         color: [0.8, 0.4, 1.0],
-        R: 14,
+        R: 11,
         T: 12,
-        kernelParams: {
-            rings: [{ r: 0.8, w: 0.8 }, { r: 1.0, w: 0.2 }],
-            beta: [1, 0.8, 0.5]
-        },
+        kernelParams: { beta: [1, 0.8, 0.5] },
         growthParams: {
             mu: 0.135,
-            sigma: 0.013
+            sigma: 0.015
         }
     }
 };
@@ -144,9 +131,9 @@ const SIMULATION_SHADER = `
         float kernelSum = 0.0;
         
         // Fixed loop bounds (WebGL 1.0 requirement)
-        // Max kernel radius is 15, so we loop -15 to 15
-        for (int dy = -15; dy <= 15; dy++) {
-            for (int dx = -15; dx <= 15; dx++) {
+        // Max kernel radius is 12, so we loop -12 to 12
+        for (int dy = -12; dy <= 12; dy++) {
+            for (int dx = -12; dx <= 12; dx++) {
                 float fdx = float(dx);
                 float fdy = float(dy);
                 float dist = sqrt(fdx * fdx + fdy * fdy);
@@ -450,13 +437,20 @@ class Lenia {
     randomize() {
         const data = new Uint8Array(this.width * this.height * 4);
         
-        // Create a few random blobs
-        const numBlobs = 5 + Math.floor(Math.random() * 5);
+        // Initialize all alpha to 255
+        for (let i = 0; i < this.width * this.height; i++) {
+            data[i * 4 + 3] = 255;
+        }
+        
+        // Create Lenia-friendly initial conditions
+        // Smooth gaussian blobs with proper density
+        const numBlobs = 8 + Math.floor(Math.random() * 8);
         
         for (let i = 0; i < numBlobs; i++) {
             const cx = Math.random() * this.width;
             const cy = Math.random() * this.height;
-            const radius = 20 + Math.random() * 40;
+            const radius = 15 + Math.random() * 25;
+            const maxIntensity = 180 + Math.random() * 75;
             
             for (let y = 0; y < this.height; y++) {
                 for (let x = 0; x < this.width; x++) {
@@ -464,13 +458,19 @@ class Lenia {
                     const dy = y - cy;
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     
-                    if (dist < radius) {
-                        const intensity = Math.random() * 200 + 55;
+                    if (dist < radius * 1.5) {
+                        // Smooth gaussian falloff
+                        const t = dist / radius;
+                        const intensity = maxIntensity * Math.exp(-t * t * 2);
                         const idx = (y * this.width + x) * 4;
-                        data[idx] = Math.min(255, data[idx] + intensity);
-                        data[idx + 1] = data[idx];
-                        data[idx + 2] = data[idx];
-                        data[idx + 3] = 255;
+                        
+                        // Add noise for organic feel
+                        const noise = (Math.random() - 0.5) * 30;
+                        const value = Math.max(0, Math.min(255, data[idx] + intensity + noise));
+                        
+                        data[idx] = value;
+                        data[idx + 1] = value;
+                        data[idx + 2] = value;
                     }
                 }
             }
