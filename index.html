@@ -29,10 +29,14 @@
             position: fixed;
             top: 20px;
             left: 20px;
-            color: rgba(255, 255, 255, 0.7);
+            color: #fff;
             font-size: 12px;
-            z-index: 100;
+            z-index: 1000;
             pointer-events: none;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 12px 16px;
+            border-radius: 6px;
+            backdrop-filter: blur(4px);
         }
         
         #ui h1 {
@@ -40,11 +44,11 @@
             font-weight: 300;
             letter-spacing: 4px;
             margin-bottom: 10px;
-            color: rgba(255, 255, 255, 0.9);
+            color: #fff;
         }
         
         #ui .stats {
-            opacity: 0.6;
+            opacity: 0.9;
         }
         
         #controls {
@@ -53,13 +57,13 @@
             left: 20px;
             display: flex;
             gap: 10px;
-            z-index: 100;
+            z-index: 1000;
         }
         
         .btn {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: rgba(255, 255, 255, 0.8);
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            color: #fff;
             padding: 8px 16px;
             font-family: inherit;
             font-size: 11px;
@@ -67,16 +71,17 @@
             transition: all 0.2s ease;
             text-transform: uppercase;
             letter-spacing: 1px;
+            backdrop-filter: blur(4px);
         }
         
         .btn:hover {
-            background: rgba(255, 255, 255, 0.2);
-            border-color: rgba(255, 255, 255, 0.4);
+            background: rgba(0, 0, 0, 0.85);
+            border-color: rgba(255, 255, 255, 0.8);
         }
         
         .btn.active {
-            background: rgba(120, 200, 255, 0.2);
-            border-color: rgba(120, 200, 255, 0.5);
+            background: rgba(120, 200, 255, 0.4);
+            border-color: rgba(120, 200, 255, 0.8);
         }
         
         #species-select {
@@ -86,26 +91,27 @@
             display: flex;
             flex-direction: column;
             gap: 8px;
-            z-index: 100;
+            z-index: 1000;
         }
         
         .species-btn {
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            border: 2px solid rgba(255, 255, 255, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.6);
             cursor: pointer;
             transition: all 0.2s ease;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
         }
         
         .species-btn:hover {
             transform: scale(1.1);
-            border-color: rgba(255, 255, 255, 0.6);
+            border-color: #fff;
         }
         
         .species-btn.selected {
             border-color: white;
-            box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.7);
         }
         
         #loading {
@@ -136,13 +142,14 @@
             top: 100px;
             left: 20px;
             width: 200px;
-            background: rgba(10, 10, 15, 0.9);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.5);
             border-radius: 4px;
-            z-index: 100;
+            z-index: 1000;
             font-size: 11px;
-            color: rgba(255, 255, 255, 0.8);
+            color: #fff;
             display: none;
+            backdrop-filter: blur(4px);
         }
         
         #lab-panel.visible {
@@ -219,12 +226,11 @@
         <h1>LENIA</h1>
         <div class="stats">
             <div id="fps">FPS: --</div>
-            <div id="creatures">Creatures: --</div>
         </div>
     </div>
     
     <div id="controls">
-        <button class="btn" id="btn-play">Play</button>
+        <button class="btn active" id="btn-play">Pause</button>
         <button class="btn" id="btn-step">Step</button>
         <button class="btn" id="btn-clear">Clear</button>
         <button class="btn" id="btn-random">Seed</button>
@@ -236,8 +242,8 @@
         <button class="btn" id="btn-mutate">🧬 Mutate</button>
         <button class="btn" id="btn-trail">👻 Trail</button>
         <button class="btn" id="btn-screenshot">📸 Shot</button>
-        <button class="btn" id="btn-speed-down">0.5x</button>
-        <button class="btn active" id="btn-speed-normal">1x</button>
+        <button class="btn active" id="btn-speed-down">0.5x</button>
+        <button class="btn" id="btn-speed-normal">1x</button>
         <button class="btn" id="btn-speed-up">2x</button>
         <button class="btn" id="btn-lab">🔬 Lab</button>
     </div>
@@ -273,12 +279,12 @@
     
     <div id="species-select"></div>
     
-    <div id="info" style="position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.4); font-size: 9px; text-align: center; pointer-events: none;">
+    <div id="info" style="position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 9px; text-align: center; pointer-events: none; text-shadow: 0 0 10px rgba(0,0,0,0.9); z-index: 1000;">
         Click: disturb · Drag: paint · Space: pause · R: random · C: clear · D: demo · M: mutate · T: trail · S: screenshot · L: lab · [/]: speed
     </div>
     
-    <div id="palette-select" style="position: fixed; top: 20px; right: 20px; display: flex; flex-direction: column; gap: 4px; z-index: 100;">
-        <div style="color: rgba(255,255,255,0.5); font-size: 10px; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px;">Palette</div>
+    <div id="palette-select" style="position: fixed; top: 20px; right: 20px; display: flex; flex-direction: column; gap: 4px; z-index: 1000;">
+        <div style="color: #fff; font-size: 10px; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 0 10px rgba(0,0,0,0.9);">Palette</div>
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>

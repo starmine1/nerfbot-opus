@@ -24,24 +24,24 @@ const SPECIES = {
     orbium: {
         name: 'Orbium',
         color: [0.2, 0.6, 1.0],
-        R: 10,        // Reduced kernel radius for performance
-        T: 10,        // Time scale
+        R: 13,
+        T: 20,        // Slower evolution
         kernelParams: { beta: [1, 1, 1] },
         growthParams: {
-            mu: 0.15,     // Growth center
-            sigma: 0.017  // Slightly wider for stability
+            mu: 0.15,
+            sigma: 0.012  // Very tight - fragile creatures
         }
     },
     
     geminium: {
         name: 'Geminium',
         color: [1.0, 0.4, 0.6],
-        R: 8,
-        T: 10,
+        R: 10,
+        T: 18,
         kernelParams: { beta: [1, 0.5, 0.5] },
         growthParams: {
             mu: 0.14,
-            sigma: 0.016
+            sigma: 0.011
         }
     },
     
@@ -49,35 +49,35 @@ const SPECIES = {
         name: 'Hydrogeminium',
         color: [0.4, 1.0, 0.6],
         R: 12,
-        T: 10,
+        T: 20,
         kernelParams: { beta: [1, 1/3, 1] },
         growthParams: {
             mu: 0.12,
-            sigma: 0.015
+            sigma: 0.010
         }
     },
     
     scutium: {
         name: 'Scutium',
         color: [1.0, 0.8, 0.2],
-        R: 10,
-        T: 8,
+        R: 11,
+        T: 16,
         kernelParams: { beta: [0.5, 1, 1] },
         growthParams: {
-            mu: 0.16,
-            sigma: 0.018
+            mu: 0.14,
+            sigma: 0.012
         }
     },
     
     gliderium: {
         name: 'Gliderium',
         color: [0.8, 0.4, 1.0],
-        R: 11,
-        T: 12,
+        R: 12,
+        T: 22,
         kernelParams: { beta: [1, 0.8, 0.5] },
         growthParams: {
-            mu: 0.135,
-            sigma: 0.015
+            mu: 0.13,
+            sigma: 0.011
         }
     }
 };
@@ -96,7 +96,8 @@ const VERTEX_SHADER = `
     }
 `;
 
-// Simulation shader - computes the Lenia update rule
+// Simulation shader - computes the Lenia update rule with lifespan
+// R = state (density), G = life energy, B = previous state (for movement detection)
 const SIMULATION_SHADER = `
     precision highp float;
     
@@ -107,13 +108,12 @@ const SIMULATION_SHADER = `
     uniform float u_mu;         // Growth center
     uniform float u_sigma;      // Growth width
     uniform float u_dt;         // Time step
-    uniform float u_trail;      // Trail/decay factor (0.0-1.0, where 1.0 = no trail)
+    uniform float u_trail;      // Trail/decay factor
     
     varying vec2 v_texCoord;
     
     // Kernel function: creates a smooth ring/annulus shape
     float kernel(float r) {
-        // Smooth bump function for ring shape
         float kr = 4.0 * r * (1.0 - r);
         return kr * kr;
     }
@@ -126,47 +126,85 @@ const SIMULATION_SHADER = `
     
     void main() {
         vec2 texelSize = 1.0 / u_resolution;
+        vec4 current = texture2D(u_state, v_texCoord);
+        float currentState = current.r;
+        float currentLife = current.g;
+        float prevState = current.b;
         
-        // Compute kernel convolution
+        // Compute kernel convolution AND spatial gradients for flow detection
         float total = 0.0;
         float kernelSum = 0.0;
+        vec2 flowVector = vec2(0.0); // Weighted direction of neighbors
         
-        // Fixed loop bounds (WebGL 1.0 requirement)
-        // Max kernel radius is 12, so we loop -12 to 12
         for (int dy = -12; dy <= 12; dy++) {
             for (int dx = -12; dx <= 12; dx++) {
                 float fdx = float(dx);
                 float fdy = float(dy);
                 float dist = sqrt(fdx * fdx + fdy * fdy);
                 
-                // Skip if outside kernel radius
-                if (dist > u_R) continue;
+                if (dist > u_R || dist < 0.5) continue;
                 
                 float r = dist / u_R;
                 float k = kernel(r);
                 
                 vec2 samplePos = v_texCoord + vec2(fdx, fdy) * texelSize;
-                float state = texture2D(u_state, samplePos).r;
+                vec4 neighborData = texture2D(u_state, samplePos);
+                float state = neighborData.r;
+                float neighborPrev = neighborData.b;
                 
                 total += state * k;
                 kernelSum += k;
+                
+                // Flow detection: which direction are neighbors changing?
+                // If neighbor gained mass, flow is coming FROM that direction
+                // If neighbor lost mass, flow is going TO that direction
+                float neighborChange = state - neighborPrev;
+                vec2 dir = normalize(vec2(fdx, fdy));
+                flowVector += dir * neighborChange * k;
             }
         }
         
-        // Normalize convolution
         float U = total / max(kernelSum, 0.001);
-        
-        // Apply growth function
         float G = growth(U);
         
-        // Update state
-        float currentState = texture2D(u_state, v_texCoord).r;
+        // Update state based on growth
         float newState = clamp(currentState + G * u_dt / u_T, 0.0, 1.0);
         
-        // Apply trail/decay effect
+        // REAL MOVEMENT DETECTION using flow
+        // flowVector magnitude = how much directional movement is happening
+        // Wobbling has low flow (changes cancel out), real movement has high flow
+        float flowMagnitude = length(flowVector) / max(kernelSum, 0.001);
+        
+        // Also check local change
+        float localChange = abs(newState - prevState);
+        
+        // LIFESPAN SYSTEM:
+        // Base decay: everything slowly dies
+        float lifeDecay = 0.001;
+        
+        // Movement bonus: ONLY reward actual directional flow, not wobbling
+        // flowMagnitude > 0.01 = real movement happening
+        float movementBonus = smoothstep(0.005, 0.02, flowMagnitude) * 0.004;
+        
+        // Update life: decay minus movement bonus
+        float newLife = currentLife - lifeDecay + movementBonus;
+        newLife = clamp(newLife, 0.0, 1.0);
+        
+        // If life runs out, cell dies faster
+        if (newLife < 0.05) {
+            newState *= 0.98; // Gradual death when life is very low
+        }
+        
+        // Kill cells with no life
+        if (newLife <= 0.0) {
+            newState = 0.0;
+        }
+        
+        // Apply trail effect
         newState *= u_trail;
         
-        gl_FragColor = vec4(newState, newState, newState, 1.0);
+        // Store: R=state, G=life, B=current state (becomes prev next frame)
+        gl_FragColor = vec4(newState, newLife, newState, 1.0);
     }
 `;
 
@@ -248,17 +286,38 @@ const RENDER_SHADER_WEBGL1 = `
     }
     
     void main() {
-        float state = texture2D(u_state, v_texCoord).r;
+        vec4 data = texture2D(u_state, v_texCoord);
+        float state = data.r;
+        float life = data.g;
+        float v = pow(state, 0.7);
         
-        // DEBUG: Simple direct visualization - bright where there's data
-        // If state > 0, show bright color; otherwise show dark background
-        if (state > 0.01) {
-            // Bright green/cyan for any non-zero state
-            gl_FragColor = vec4(state, 1.0, state * 0.5 + 0.5, 1.0);
-        } else {
-            // Dark blue background
-            gl_FragColor = vec4(0.02, 0.02, 0.08, 1.0);
-        }
+        vec2 texelSize = 1.0 / u_resolution;
+        
+        float dx = texture2D(u_state, v_texCoord + vec2(texelSize.x, 0.0)).r - 
+                   texture2D(u_state, v_texCoord - vec2(texelSize.x, 0.0)).r;
+        float dy = texture2D(u_state, v_texCoord + vec2(0.0, texelSize.y)).r - 
+                   texture2D(u_state, v_texCoord - vec2(0.0, texelSize.y)).r;
+        
+        float edge = length(vec2(dx, dy)) * 8.0;
+        
+        vec3 baseColor = palette(v);
+        vec3 edgeColor = palette(0.95) * edge;
+        
+        // Tint based on life: healthy = normal color, dying = reddish
+        float lifeHealth = smoothstep(0.0, 0.5, life);
+        baseColor = mix(vec3(0.8, 0.2, 0.1), baseColor, lifeHealth);
+        
+        vec3 color = mix(u_background, baseColor + edgeColor, 
+                         smoothstep(0.0, 0.08, v + edge * 0.3));
+        
+        float breath = sin(u_time * 2.0) * 0.5 + 0.5;
+        color += edgeColor * breath * 0.1;
+        
+        vec2 center = v_texCoord - 0.5;
+        float vignette = 1.0 - dot(center, center) * 0.6;
+        color *= vignette;
+        
+        gl_FragColor = vec4(color, 1.0);
     }
 `;
 
@@ -275,7 +334,7 @@ class Lenia {
             throw new Error('WebGL not supported');
         }
         
-        this.playing = false; // Start paused so initial pattern is visible
+        this.playing = true;
         this.paintMode = false;
         this.currentSpecies = 'orbium';
         this.currentPalette = 'aurora';
@@ -300,7 +359,7 @@ class Lenia {
         this.mutationSpeed = 0.0005; // How fast parameters drift
         
         // Speed control
-        this.timeScale = 1.0; // 1.0 = normal speed, 0.5 = slow-mo, 2.0 = fast
+        this.timeScale = 0.5; // Start slower for stability
         
         // Trail effect for motion blur
         this.trailEnabled = false;
@@ -322,21 +381,8 @@ class Lenia {
         this.resize();
         
         // Create shaders
-        console.log('Creating simulation program...');
         this.simProgram = this.createProgram(VERTEX_SHADER, SIMULATION_SHADER);
-        console.log('Simulation program created:', !!this.simProgram);
-        
-        console.log('Creating render program...');
         this.renderProgram = this.createProgram(VERTEX_SHADER, RENDER_SHADER_WEBGL1);
-        console.log('Render program created:', !!this.renderProgram);
-        
-        // Check for WebGL errors
-        const err = gl.getError();
-        if (err !== gl.NO_ERROR) {
-            console.error('WebGL error after shader creation:', err);
-        } else {
-            console.log('✅ No WebGL errors after shader creation');
-        }
         
         // Create geometry (full-screen quad)
         this.quadBuffer = gl.createBuffer();
@@ -354,12 +400,8 @@ class Lenia {
         ];
         this.currentBuffer = 0;
         
-        // Initialize with random state
-        this.randomize();
-        
-        // Add a visible test blob in the center to verify rendering works
-        this.paint(0.5, 0.5, 50, 255);
-        console.log('🎯 Added test blob at center');
+        // Start with a clear canvas - user can seed or spawn
+        this.clear();
         
         // Setup mouse interaction
         this.setupInteraction();
@@ -408,8 +450,9 @@ class Lenia {
         const gl = this.gl;
         const texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+        // MUST use CLAMP_TO_EDGE for non-power-of-two textures in WebGL 1!
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.width, this.height, 0, 
@@ -455,13 +498,17 @@ class Lenia {
         const species = SPECIES[this.currentSpecies];
         const targetMu = species.growthParams.mu; // ~0.15
         
-        // Create multiple ring-shaped structures (like actual Lenia creatures)
-        const numCreatures = 4 + Math.floor(Math.random() * 4);
+        // Create a few ring-shaped structures - not too many or they crowd each other!
+        const numCreatures = 2 + Math.floor(Math.random() * 2); // 2-3 creatures max
         
         for (let i = 0; i < numCreatures; i++) {
-            const cx = this.width * (0.15 + Math.random() * 0.7);
-            const cy = this.height * (0.15 + Math.random() * 0.7);
-            const outerRadius = 20 + Math.random() * 20;
+            // Space them out more - divide screen into regions
+            const region = i % 4;
+            const baseX = (region % 2) * 0.4 + 0.2; // 0.2 or 0.6
+            const baseY = Math.floor(region / 2) * 0.4 + 0.2; // 0.2 or 0.6
+            const cx = this.width * (baseX + (Math.random() - 0.5) * 0.2);
+            const cy = this.height * (baseY + (Math.random() - 0.5) * 0.2);
+            const outerRadius = 15 + Math.random() * 15; // Slightly smaller
             const innerRadius = outerRadius * (0.3 + Math.random() * 0.3);
             
             // Target intensity that will produce neighborhood averages near mu
@@ -494,24 +541,13 @@ class Lenia {
                         const noise = (Math.random() - 0.5) * 15;
                         const value = Math.max(0, Math.min(255, data[idx] + intensity + noise));
                         
-                        data[idx] = value;
-                        data[idx + 1] = value;
-                        data[idx + 2] = value;
+                        data[idx] = value;      // R = state
+                        data[idx + 1] = 255;    // G = full life
+                        data[idx + 2] = value;  // B = prev state
                     }
                 }
             }
         }
-        
-        // Debug: check our generated data before upload
-        let nonZero = 0;
-        let maxVal = 0;
-        for (let i = 0; i < data.length; i += 4) {
-            if (data[i] > 0) {
-                nonZero++;
-                maxVal = Math.max(maxVal, data[i]);
-            }
-        }
-        console.log(`🎲 randomize(): Generated ${nonZero} non-zero pixels, max value: ${maxVal}`);
         
         // Upload to texture
         const gl = this.gl;
@@ -556,8 +592,8 @@ class Lenia {
                 const idx = (ty * this.width + tx) * 4;
                 const newVal = Math.min(255, Math.floor(value * 255));
                 data[idx] = Math.max(data[idx], newVal);
-                data[idx + 1] = data[idx];
-                data[idx + 2] = data[idx];
+                data[idx + 1] = 255; // Full life
+                data[idx + 2] = data[idx]; // Prev state
                 data[idx + 3] = 255;
             }
         }
@@ -578,27 +614,40 @@ class Lenia {
         const data = new Uint8Array(this.width * this.height * 4);
         gl.readPixels(0, 0, this.width, this.height, gl.RGBA, gl.UNSIGNED_BYTE, data);
         
-        // Paint circle
+        // Paint a RING pattern (like Lenia creatures) instead of solid blob
         const px = Math.floor(x * this.width);
         const py = Math.floor((1 - y) * this.height);
+        const innerRadius = radius * 0.4;
+        const outerRadius = radius;
+        const ringCenter = (innerRadius + outerRadius) / 2;
+        const ringWidth = (outerRadius - innerRadius) / 2;
         
-        for (let dy = -radius; dy <= radius; dy++) {
-            for (let dx = -radius; dx <= radius; dx++) {
+        for (let dy = -outerRadius; dy <= outerRadius; dy++) {
+            for (let dx = -outerRadius; dx <= outerRadius; dx++) {
                 const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > radius) continue;
+                if (dist > outerRadius) continue;
                 
                 const nx = px + dx;
                 const ny = py + dy;
                 
                 if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) continue;
                 
-                const falloff = 1 - dist / radius;
-                const add = intensity * falloff * falloff;
+                // Ring pattern: peak at ringCenter, falloff on both sides
+                const ringDist = Math.abs(dist - ringCenter) / ringWidth;
+                const ringValue = Math.exp(-ringDist * ringDist * 1.5);
+                
+                // Also add some core for stability
+                const coreValue = dist < innerRadius ? 
+                    Math.exp(-Math.pow(dist / innerRadius, 2) * 2) * 0.5 : 0;
+                
+                const value = Math.max(ringValue, coreValue) * intensity;
                 const idx = (ny * this.width + nx) * 4;
                 
-                data[idx] = Math.min(255, data[idx] + add);
-                data[idx + 1] = data[idx];
-                data[idx + 2] = data[idx];
+                // R = state, G = life (start at full), B = prev state
+                data[idx] = Math.min(255, data[idx] + value);
+                data[idx + 1] = 255; // Full life
+                data[idx + 2] = data[idx]; // Prev = current
+                data[idx + 3] = 255;
             }
         }
         
@@ -1005,6 +1054,38 @@ class Lenia {
         }
     }
     
+    checkAutoSpawn() {
+        const gl = this.gl;
+        
+        // Read current state to check if anything alive
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers[this.currentBuffer]);
+        const data = new Uint8Array(this.width * this.height * 4);
+        gl.readPixels(0, 0, this.width, this.height, gl.RGBA, gl.UNSIGNED_BYTE, data);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        
+        // Count pixels with significant life
+        let alivePixels = 0;
+        for (let i = 0; i < data.length; i += 4) {
+            if (data[i] > 10 && data[i + 1] > 50) { // Has state AND life
+                alivePixels++;
+            }
+        }
+        
+        // If very few alive pixels, spawn a creature
+        const threshold = (this.width * this.height) * 0.001; // Less than 0.1% alive
+        if (alivePixels < threshold) {
+            console.log('🔄 Auto-spawning creature (screen empty)');
+            const templates = typeof CREATURE_TEMPLATES !== 'undefined' ? 
+                Object.values(CREATURE_TEMPLATES) : [];
+            if (templates.length > 0) {
+                const creature = templates[Math.floor(Math.random() * templates.length)];
+                const x = 0.2 + Math.random() * 0.6;
+                const y = 0.2 + Math.random() * 0.6;
+                this.spawnCreature(creature, x, y, 0.8 + Math.random() * 0.4);
+            }
+        }
+    }
+    
     updateFPS() {
         this.frameCount++;
         const now = performance.now();
@@ -1028,6 +1109,11 @@ class Lenia {
         
         if (this.playing) {
             this.step();
+            
+            // Auto-spawn check every 60 frames (~1 second)
+            if (this.frameCount % 60 === 0) {
+                this.checkAutoSpawn();
+            }
         }
         
         this.render();
@@ -1145,26 +1231,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Hide loading screen and start
         loading.classList.add('hidden');
-        
-        // Debug: verify initial state has values
-        const gl = lenia.gl;
-        gl.bindFramebuffer(gl.FRAMEBUFFER, lenia.framebuffers[lenia.currentBuffer]);
-        const debugData = new Uint8Array(lenia.width * lenia.height * 4);
-        gl.readPixels(0, 0, lenia.width, lenia.height, gl.RGBA, gl.UNSIGNED_BYTE, debugData);
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        
-        let nonZeroPixels = 0;
-        let maxValue = 0;
-        for (let i = 0; i < debugData.length; i += 4) {
-            if (debugData[i] > 0) {
-                nonZeroPixels++;
-                maxValue = Math.max(maxValue, debugData[i]);
-            }
-        }
-        console.log(`🔍 Initial state: ${nonZeroPixels} non-zero pixels, max value: ${maxValue}`);
-        console.log(`🔍 Canvas size: ${lenia.width}x${lenia.height}`);
-        console.log(`🔍 Species: ${lenia.currentSpecies}, Palette: ${lenia.currentPalette}`);
-        
         lenia.animate();
         
         // Audio button
