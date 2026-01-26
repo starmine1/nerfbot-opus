@@ -1535,6 +1535,20 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
+        // Initialize preset gallery
+        if (typeof PresetGallery !== 'undefined') {
+            const presetGallery = new PresetGallery();
+            const presetUI = new PresetGalleryUI(lenia, presetGallery);
+            
+            document.getElementById('btn-presets').addEventListener('click', () => {
+                presetUI.toggle();
+            });
+            
+            // Expose for debugging
+            window.presetGallery = presetGallery;
+            window.presetUI = presetUI;
+        }
+        
         // Expose for debugging
         window.lenia = lenia;
         
