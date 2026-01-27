@@ -132,12 +132,13 @@ const SIMULATION_SHADER = `
         float prevState = current.b;
         
         // Compute kernel convolution AND spatial gradients for flow detection
+        // Sample stride of 2 for massive performance boost (75% fewer samples)
         float total = 0.0;
         float kernelSum = 0.0;
         vec2 flowVector = vec2(0.0); // Weighted direction of neighbors
         
-        for (int dy = -12; dy <= 12; dy++) {
-            for (int dx = -12; dx <= 12; dx++) {
+        for (int dy = -12; dy <= 12; dy += 2) {
+            for (int dx = -12; dx <= 12; dx += 2) {
                 float fdx = float(dx);
                 float fdy = float(dy);
                 float dist = sqrt(fdx * fdx + fdy * fdy);
@@ -471,7 +472,7 @@ class Lenia {
     
     resize() {
         const dpr = window.devicePixelRatio || 1;
-        const scale = 0.5; // Reduce resolution for performance
+        const scale = 0.25; // Aggressive resolution reduction for smooth 60fps
         
         this.width = Math.floor(this.canvas.clientWidth * dpr * scale);
         this.height = Math.floor(this.canvas.clientHeight * dpr * scale);
