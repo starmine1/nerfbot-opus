@@ -48,10 +48,39 @@ Current roster: Orbium, Geminium, Trilobite, Scutium, Pulsar, Swimmer
 - ✅ **Trail Effect** - motion blur/ghosting for more organic, flowing visuals (T key or button)
 - ✅ **Lab Mode** - real-time parameter tweaking with sliders for R, T, μ, σ (L key or button)
 
-### Known Issues
-- Performance could be better (convolution is O(R²) per pixel)
-  - Could use FFT for O(n log n) but adds complexity
-  - Current approach is "good enough" and simpler
+### Known Issues & Performance
+
+**Current State (2026-01-28):**
+- Performance is **UNACCEPTABLE** at 1-2 FPS on standard hardware
+- Simple optimizations (0.25 scale, stride-2 sampling) provide minimal improvement
+- This is NOT "good enough" - it's unusable
+
+**Root Cause:**
+- Convolution is O(R²) per pixel: ~625 samples × 400K pixels = 250M samples/frame
+- Shader loop hardcoded to -12..12 range even when R is smaller
+- CPU overhead from requestAnimationFrame and state updates
+- No spatial optimization (quadtree, hierarchical, etc.)
+
+**Performance Roadmap:**
+
+**Quick Wins (1-2h):**
+- [ ] Dynamic loop bounds in shader based on actual R value
+- [ ] Reduce default canvas size or add quality toggle
+- [ ] Profile CPU vs GPU bottleneck with DevTools
+- [ ] Test on different hardware to isolate issue
+
+**Medium Effort (4-8h):**
+- [ ] WebGL 2.0 migration with compute shaders
+- [ ] Separate simulation resolution from render resolution (sim at 128x128, display at full res)
+- [ ] Implement spatial hashing to skip dead regions
+- [ ] Multi-pass rendering: rough sim → detail refinement
+
+**Nuclear Option (12h+):**
+- [ ] FFT-based convolution for O(n log n) complexity
+- [ ] Migrate to WebGPU for modern compute capabilities
+- [ ] Parallel multi-resolution simulation
+
+**Other Issues:**
 - Mobile touch support is basic
 - GIF export uses gif.js - might be slow on large canvases
 
@@ -64,7 +93,34 @@ Keep it simple. Make it beautiful. Don't over-engineer. The goal is "fuck me, th
 - **Live Demo:** https://starmine1.github.io/nerfbot-opus/
 - **Lenia paper:** https://arxiv.org/abs/1812.05433
 
+## Session Log
+
+### 2026-01-28 02:00 - Performance Investigation
+**Goal:** Fix performance issues (1-2 FPS → smooth 60 FPS)
+
+**Attempted:**
+- Reduced resolution scale from 0.5 to 0.25 (4x fewer pixels)
+- Added stride-2 sampling in shader loops (75% fewer samples per pixel)
+- Combined: theoretical 16x speedup
+
+**Results:**
+- Minimal improvement (1 FPS → 2 FPS in some tests)
+- Browser/server caching made testing painful
+- Changes pushed to GitHub but need proper benchmarking
+
+**Conclusion:**
+- Performance issues run deeper than simple optimizations
+- Needs proper profiling to identify CPU vs GPU bottleneck
+- Consider WebGL 2.0 or WebGPU migration
+- Project is beautiful but UNUSABLE at current performance
+
+**Next Steps:**
+- Profile with Chrome DevTools Performance tab
+- Test on different hardware (GPU-bound vs CPU-bound?)
+- Consider separate simulation/render resolutions
+- Maybe this needs a from-scratch WebGL 2.0 rewrite
+
 ---
 
-**Last updated:** 2026-01-26 06:45
-**Status:** Feature-complete - Lab mode added for parameter experimentation
+**Last updated:** 2026-01-28 02:35
+**Status:** Feature-complete but performance-broken - needs optimization work before it's actually usable
