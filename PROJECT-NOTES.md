@@ -47,19 +47,14 @@ Current roster: Orbium, Geminium, Trilobite, Scutium, Pulsar, Swimmer
 - ✅ **Speed Control** - slow-motion (0.5x), normal (1x), or fast-forward (2x) using buttons or [ / ] keys
 - ✅ **Trail Effect** - motion blur/ghosting for more organic, flowing visuals (T key or button)
 - ✅ **Lab Mode** - real-time parameter tweaking with sliders for R, T, μ, σ (L key or button)
+- ✅ **Lifespan System** - Move-or-die mechanic using flow vector analysis
+- ✅ **Multi-Species Ecosystem** - Predator-prey dynamics (ecosystem.html)
 
 ### Known Issues & Performance
 
-**Current State (2026-01-28):**
-- Performance is **UNACCEPTABLE** at 1-2 FPS on standard hardware
-- Simple optimizations (0.25 scale, stride-2 sampling) provide minimal improvement
-- This is NOT "good enough" - it's unusable
-
-**Root Cause:**
-- Convolution is O(R²) per pixel: ~625 samples × 400K pixels = 250M samples/frame
-- Shader loop hardcoded to -12..12 range even when R is smaller
-- CPU overhead from requestAnimationFrame and state updates
-- No spatial optimization (quadtree, hierarchical, etc.)
+**Current State (2026-02-02):**
+- Base Lenia is stable at 60 FPS @ 512x512
+- Ecosystem mode adds overhead from 3-channel convolution
 
 **Performance Roadmap:**
 
@@ -67,18 +62,11 @@ Current roster: Orbium, Geminium, Trilobite, Scutium, Pulsar, Swimmer
 - [ ] Dynamic loop bounds in shader based on actual R value
 - [ ] Reduce default canvas size or add quality toggle
 - [ ] Profile CPU vs GPU bottleneck with DevTools
-- [ ] Test on different hardware to isolate issue
 
 **Medium Effort (4-8h):**
 - [ ] WebGL 2.0 migration with compute shaders
-- [ ] Separate simulation resolution from render resolution (sim at 128x128, display at full res)
+- [ ] Separate simulation resolution from render resolution
 - [ ] Implement spatial hashing to skip dead regions
-- [ ] Multi-pass rendering: rough sim → detail refinement
-
-**Nuclear Option (12h+):**
-- [ ] FFT-based convolution for O(n log n) complexity
-- [ ] Migrate to WebGPU for modern compute capabilities
-- [ ] Parallel multi-resolution simulation
 
 **Other Issues:**
 - Mobile touch support is basic
@@ -91,36 +79,51 @@ Keep it simple. Make it beautiful. Don't over-engineer. The goal is "fuck me, th
 ## Links
 - **Repo:** https://github.com/starmine1/nerfbot-opus
 - **Live Demo:** https://starmine1.github.io/nerfbot-opus/
+- **Ecosystem Demo:** https://starmine1.github.io/nerfbot-opus/ecosystem.html
 - **Lenia paper:** https://arxiv.org/abs/1812.05433
 
 ## Session Log
 
-### 2026-01-28 02:00 - Performance Investigation
-**Goal:** Fix performance issues (1-2 FPS → smooth 60 FPS)
+### 2026-02-02 12:30 - Multi-Species Ecosystem (Session 2)
 
-**Attempted:**
-- Reduced resolution scale from 0.5 to 0.25 (4x fewer pixels)
-- Added stride-2 sampling in shader loops (75% fewer samples per pixel)
-- Combined: theoretical 16x speedup
+**Goal:** Implement predator-prey dynamics with three species
 
-**Results:**
-- Minimal improvement (1 FPS → 2 FPS in some tests)
-- Browser/server caching made testing painful
-- Changes pushed to GitHub but need proper benchmarking
+**Built:**
+- `ecosystem.js` - Full ecosystem engine with:
+  - Three species: Prey (R), Predator (G), Apex (B)
+  - Interaction matrix: predation, benefits, crowding
+  - Per-species Lenia parameters (R, T, μ, σ)
+  - Real-time population stats
+  - Paint mode per species
+  - Parameter sliders for tuning
 
-**Conclusion:**
-- Performance issues run deeper than simple optimizations
-- Needs proper profiling to identify CPU vs GPU bottleneck
-- Consider WebGL 2.0 or WebGPU migration
-- Project is beautiful but UNUSABLE at current performance
+- `ecosystem.html` - Demo page with:
+  - Full UI controls
+  - Species selection for painting
+  - Population stats overlay
+  - Keyboard shortcuts (1/2/3 for species)
 
-**Next Steps:**
-- Profile with Chrome DevTools Performance tab
-- Test on different hardware (GPU-bound vs CPU-bound?)
-- Consider separate simulation/render resolutions
-- Maybe this needs a from-scratch WebGL 2.0 rewrite
+**Interaction System:**
+```
+Prey ←eats— Predator ←eats— Apex
+     —benefits→      —benefits→
+```
+
+**Next:**
+- [ ] Test and tune interaction strengths
+- [ ] Add auto-spawn when species die out
+- [ ] Population graphs over time
+- [ ] Audio reactivity to ecosystem
 
 ---
 
-**Last updated:** 2026-01-28 02:35
-**Status:** Feature-complete but performance-broken - needs optimization work before it's actually usable
+### 2026-02-01 - Session 1 Summary
+- Lifespan system with flow vector analysis
+- Move-or-die mechanic (wobbling doesn't count)
+- Stable 60 FPS performance
+- All base features working
+
+---
+
+**Last updated:** 2026-02-02 12:45
+**Status:** Multi-species ecosystem built, needs testing and tuning
