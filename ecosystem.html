@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lenia Ecosystem - Predator-Prey Dynamics</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #0a0a0f;
+            overflow: hidden;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+        
+        #canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #ui {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            font-size: 12px;
+            z-index: 1000;
+            pointer-events: none;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 12px 16px;
+            border-radius: 6px;
+            backdrop-filter: blur(4px);
+        }
+        
+        #ui h1 {
+            font-size: 20px;
+            font-weight: 300;
+            letter-spacing: 3px;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #ff6644, #44ff88, #4488ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        #ui .stats {
+            opacity: 0.9;
+            line-height: 1.6;
+        }
+        
+        .stat-prey { color: #ff6644; }
+        .stat-pred { color: #44ff88; }
+        .stat-apex { color: #4488ff; }
+        
+        #controls {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            max-width: 400px;
+            z-index: 1000;
+        }
+        
+        .btn {
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            color: #fff;
+            padding: 8px 14px;
+            font-family: inherit;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            backdrop-filter: blur(4px);
+        }
+        
+        .btn:hover {
+            background: rgba(0, 0, 0, 0.85);
+            border-color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .btn.active {
+            background: rgba(120, 200, 255, 0.3);
+            border-color: rgba(120, 200, 255, 0.7);
+        }
+        
+        #species-select {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 1000;
+        }
+        
+        .species-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 4px rgba(0,0,0,0.8);
+        }
+        
+        .species-btn:hover {
+            border-color: rgba(255, 255, 255, 0.7);
+            transform: scale(1.1);
+        }
+        
+        .species-btn.selected {
+            border-color: #fff;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+        }
+        
+        #param-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 11px;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+            width: 200px;
+        }
+        
+        #param-panel h3 {
+            margin-bottom: 10px;
+            font-weight: 300;
+            letter-spacing: 2px;
+        }
+        
+        .param-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .param-row label {
+            flex: 1;
+        }
+        
+        .param-row input[type="range"] {
+            width: 100px;
+            accent-color: #4488ff;
+        }
+        
+        .param-row .value {
+            width: 40px;
+            text-align: right;
+            opacity: 0.7;
+        }
+        
+        #legend {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 10px;
+            z-index: 1000;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+        
+        .legend-swatch {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0a0a0f;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.5s;
+        }
+        
+        #loading.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div style="color: #fff; font-size: 24px; letter-spacing: 4px;">ECOSYSTEM</div>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+    
+    <div id="ui">
+        <h1>🌿 ECOSYSTEM</h1>
+        <div class="stats">
+            <div id="fps">FPS: --</div>
+            <div class="stat-prey">🔴 Prey: <span id="stat-prey">0.0000</span></div>
+            <div class="stat-pred">🟢 Predator: <span id="stat-pred">0.0000</span></div>
+            <div class="stat-apex">🔵 Apex: <span id="stat-apex">0.0000</span></div>
+        </div>
+    </div>
+    
+    <div id="controls">
+        <button class="btn active" id="btn-play">Pause</button>
+        <button class="btn" id="btn-step">Step</button>
+        <button class="btn" id="btn-clear">Clear</button>
+        <button class="btn" id="btn-seed">Reseed</button>
+        <button class="btn" id="btn-paint">🖌️ Paint</button>
+    </div>
+    
+    <div id="param-panel">
+        <h3>PARAMETERS</h3>
+        <div class="param-row">
+            <label>Predation</label>
+            <input type="range" id="param-predation" min="0" max="0.5" step="0.01" value="0.15">
+            <span class="value" id="val-predation">0.15</span>
+        </div>
+        <div class="param-row">
+            <label>Benefit</label>
+            <input type="range" id="param-benefit" min="0" max="0.3" step="0.01" value="0.12">
+            <span class="value" id="val-benefit">0.12</span>
+        </div>
+        <div class="param-row">
+            <label>Speed</label>
+            <input type="range" id="param-speed" min="0.1" max="2" step="0.1" value="0.5">
+            <span class="value" id="val-speed">0.5</span>
+        </div>
+    </div>
+    
+    <div id="legend">
+        <div class="legend-item">
+            <div class="legend-swatch" style="background: #ff6644;"></div>
+            <span>Prey - Fast, Hardy</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-swatch" style="background: #44ff88;"></div>
+            <span>Predator - Medium</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-swatch" style="background: #4488ff;"></div>
+            <span>Apex - Slow, Fragile</span>
+        </div>
+    </div>
+    
+    <div id="species-select">
+        <button class="species-btn selected" id="btn-prey" style="background: #ff6644;" data-species="prey">PREY</button>
+        <button class="species-btn" id="btn-predator" style="background: #44ff88;" data-species="predator">PRED</button>
+        <button class="species-btn" id="btn-apex" style="background: #4488ff;" data-species="apex">APEX</button>
+    </div>
+    
+    <script>
+        // Vertex shader (shared)
+        const VERTEX_SHADER = `
+            attribute vec2 a_position;
+            varying vec2 v_texCoord;
+            
+            void main() {
+                v_texCoord = a_position * 0.5 + 0.5;
+                gl_Position = vec4(a_position, 0.0, 1.0);
+            }
+        `;
+    </script>
+    <script src="ecosystem.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('canvas');
+            const loading = document.getElementById('loading');
+            
+            try {
+                const eco = new LeniaEcosystem(canvas);
+                
+                // Controls
+                const btnPlay = document.getElementById('btn-play');
+                const btnStep = document.getElementById('btn-step');
+                const btnClear = document.getElementById('btn-clear');
+                const btnSeed = document.getElementById('btn-seed');
+                const btnPaint = document.getElementById('btn-paint');
+                
+                btnPlay.addEventListener('click', () => {
+                    eco.playing = !eco.playing;
+                    btnPlay.textContent = eco.playing ? 'Pause' : 'Play';
+                    btnPlay.classList.toggle('active', eco.playing);
+                });
+                
+                btnStep.addEventListener('click', () => eco.step());
+                btnClear.addEventListener('click', () => eco.clear());
+                btnSeed.addEventListener('click', () => eco.seedEcosystem());
+                
+                btnPaint.addEventListener('click', () => {
+                    eco.paintMode = !eco.paintMode;
+                    btnPaint.classList.toggle('active', eco.paintMode);
+                    canvas.style.cursor = eco.paintMode ? 'crosshair' : 'default';
+                });
+                
+                // Species selection for painting
+                document.querySelectorAll('.species-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        document.querySelectorAll('.species-btn').forEach(b => b.classList.remove('selected'));
+                        btn.classList.add('selected');
+                        eco.paintSpecies = btn.dataset.species;
+                    });
+                });
+                
+                // Parameter sliders
+                const paramPredation = document.getElementById('param-predation');
+                const paramBenefit = document.getElementById('param-benefit');
+                const paramSpeed = document.getElementById('param-speed');
+                
+                paramPredation.addEventListener('input', (e) => {
+                    eco.predationStrength = parseFloat(e.target.value);
+                    document.getElementById('val-predation').textContent = e.target.value;
+                });
+                
+                paramBenefit.addEventListener('input', (e) => {
+                    eco.benefitStrength = parseFloat(e.target.value);
+                    document.getElementById('val-benefit').textContent = e.target.value;
+                });
+                
+                paramSpeed.addEventListener('input', (e) => {
+                    eco.timeScale = parseFloat(e.target.value);
+                    document.getElementById('val-speed').textContent = e.target.value;
+                });
+                
+                // Stats update
+                setInterval(() => {
+                    const stats = eco.getPopulationStats();
+                    document.getElementById('stat-prey').textContent = stats.prey;
+                    document.getElementById('stat-pred').textContent = stats.predator;
+                    document.getElementById('stat-apex').textContent = stats.apex;
+                }, 500);
+                
+                // Resize handler
+                window.addEventListener('resize', () => {
+                    eco.resize();
+                    eco.textures = [eco.createTexture(), eco.createTexture()];
+                    eco.framebuffers = [
+                        eco.createFramebuffer(eco.textures[0]),
+                        eco.createFramebuffer(eco.textures[1])
+                    ];
+                    eco.seedEcosystem();
+                });
+                
+                // Keyboard shortcuts
+                document.addEventListener('keydown', (e) => {
+                    switch(e.key.toLowerCase()) {
+                        case ' ':
+                            e.preventDefault();
+                            btnPlay.click();
+                            break;
+                        case 's':
+                            btnStep.click();
+                            break;
+                        case 'c':
+                            btnClear.click();
+                            break;
+                        case 'r':
+                            btnSeed.click();
+                            break;
+                        case 'p':
+                            btnPaint.click();
+                            break;
+                        case '1':
+                            document.getElementById('btn-prey').click();
+                            break;
+                        case '2':
+                            document.getElementById('btn-predator').click();
+                            break;
+                        case '3':
+                            document.getElementById('btn-apex').click();
+                            break;
+                    }
+                });
+                
+                loading.classList.add('hidden');
+                eco.animate();
+                
+            } catch (err) {
+                console.error('Init error:', err);
+                loading.innerHTML = `<div style="color: #ff4444;">${err.message}</div>`;
+            }
+        });
+    </script>
+</body>
+</html>
